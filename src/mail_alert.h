@@ -82,7 +82,7 @@ uint8_t sendAlertMail(const MailJob& job) {
   html+="<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"background:#edf3f3;padding:28px 12px\"><tr><td align=\"center\">";
   html+="<table role=\"presentation\" width=\"600\" cellspacing=\"0\" cellpadding=\"0\" style=\"width:100%;max-width:600px;background:#ffffff;border-radius:18px;overflow:hidden\">";
   html+="<tr><td style=\"background-color:#075e65;background-image:linear-gradient(135deg,#075e65,#0b8584);padding:30px;color:#ffffff\">";
-  html+="<div style=\"font-size:13px;letter-spacing:3px;opacity:.82\">VIGÍA · MONITOREO LOCAL</div>";
+  html+="<div style=\"font-size:13px;letter-spacing:3px;opacity:.82\">VIGÍA · MONITOREO EN TIEMPO REAL</div>";
   html+="<div style=\"font-size:30px;font-weight:bold;margin-top:10px\">◉ "+eventTitle+"</div>";
   html+="<div style=\"margin-top:14px;display:inline-block;padding:7px 12px;border-radius:999px;background:#ffffff;color:#075e65;font-size:12px;font-weight:bold;letter-spacing:1px\">"+eventLabel+"</div></td></tr>";
   html+="<tr><td style=\"padding:30px\"><p style=\"font-size:17px;line-height:1.55;margin:0 0 22px\">";
@@ -93,7 +93,6 @@ uint8_t sendAlertMail(const MailJob& job) {
   html+="<tr><td style=\"padding:16px 18px;border-bottom:1px solid #dce9e9;color:#567477;font-size:13px\">DISPOSITIVO</td><td align=\"right\" style=\"padding:16px 18px;border-bottom:1px solid #dce9e9\">Vigía ESP32</td></tr>";
   html+="<tr><td style=\"padding:16px 18px;border-bottom:1px solid #dce9e9;color:#567477;font-size:13px\">TIEMPO ENCENDIDO</td><td align=\"right\" style=\"padding:16px 18px;border-bottom:1px solid #dce9e9\">"+String(job.uptime)+" s</td></tr>";
   html+="<tr><td style=\"padding:16px 18px;color:#567477;font-size:13px\">IP LOCAL</td><td align=\"right\" style=\"padding:16px 18px\">"+WiFi.localIP().toString()+"</td></tr></table>";
-  html+="<div style=\"margin-top:22px;padding:16px 18px;border-left:4px solid #e2a62b;background:#fff8e8;border-radius:8px;color:#624b17;font-size:14px;line-height:1.5\">El PIR detecta movimiento por cambios infrarrojos. La alerta no confirma por sí sola una intrusión.</div>";
   html+="<p style=\"margin:24px 0 0;color:#789092;font-size:12px;line-height:1.5\">Evento: "+String(boliviaIso)+" · Mensaje automático de Vigía</p>";
   html+="</td></tr><tr><td style=\"padding:18px 30px;background:#143f43;color:#bcd3d4;font-size:12px\">Protección activa · ESP32 + sensor PIR</td></tr></table></td></tr></table></body></html>";
 
