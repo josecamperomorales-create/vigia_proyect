@@ -155,4 +155,4 @@ pio device monitor --port /dev/cu.usbserial-0001 --baud 115200
 
 En el monitor serie debe aparecer `Nube: heartbeat -> HTTP 202` dentro de los primeros 15 segundos. En la web el estado pasa a **Monitor activo**. Un movimiento agrega `motion_start` y, cuando la señal PIR baja, `motion_end`. Si se desconecta el ESP32, la web lo muestra sin conexión después de aproximadamente 45 segundos.
 
-El envío usa HTTPS y valida el certificado TLS con la raíz ISRG Root X1 de Let's Encrypt incluida en `certs/isrg-root-x1.pem`. Los eventos pendientes viven en RAM: una caída de red o reinicio puede perder un evento, pero el próximo latido recupera el estado de conectividad.
+El envío usa HTTPS y valida el certificado TLS con las raíces de Google Trust Services y la raíz ISRG Root X1 de Let's Encrypt incluidas en el firmware. Los eventos pendientes viven en RAM: una caída de red o reinicio puede perder un evento, pero el próximo latido recupera el estado de conectividad.

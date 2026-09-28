@@ -67,7 +67,7 @@ contents += "static const uint32_t CLOUD_HEARTBEAT_INTERVAL_MS = 15000UL;\n"
 roots = (root / "certs/google-roots.pem").read_text()
 contents += 'static const char SMTP_CA[] PROGMEM = R"CERT(' + roots + ')CERT";\n'
 cloud_root = (root / "certs/isrg-root-x1.pem").read_text()
-contents += 'static const char CLOUD_CA[] PROGMEM = R"CERT(' + cloud_root + ')CERT";\n'
+contents += 'static const char CLOUD_CA[] PROGMEM = R"CERT(' + roots + cloud_root + ')CERT";\n'
 html = (root / "web/index.html").read_text()
 contents += 'static const char INDEX_HTML[] PROGMEM = R"VIGIAHTML(' + html + ')VIGIAHTML";\n'
 target = generated / "config.h"
