@@ -4,6 +4,7 @@
 #include <ESPmDNS.h>
 #include <time.h>
 #include <esp_timer.h>
+#include <freertos/semphr.h>
 #include "config.h"
 #include "motion.h"
 
@@ -17,6 +18,7 @@ constexpr size_t EVENT_LIMIT = 100;
 Event events[EVENT_LIMIT];
 size_t eventCount = 0, nextEvent = 0;
 uint32_t eventId = 0;
+SemaphoreHandle_t tlsMutex = nullptr;
 void logEvent(uint8_t kind) {
   time_t now = time(nullptr);
   events[nextEvent] = {++eventId, static_cast<unsigned long>(esp_timer_get_time()/1000000), now > 1700000000 ? static_cast<unsigned long>(now) : 0, kind};
@@ -26,6 +28,25 @@ void logEvent(uint8_t kind) {
 }
 #include "mail_alert.h"
 #include "cloud_sync.h"
+
+void handleMotionTransition(int transition) {
+  if (!transition) return;
+  logEvent(transition);
+  if (transition == 2) { queueAlertMail(); queueCloudEvent(CLOUD_MOTION_START, true); }
+  if (transition == 3) queueCloudEvent(CLOUD_MOTION_END, false);
+}
+
+void pollDiagnostics() {
+  while (Serial.available()) {
+    const char command = Serial.read();
+    if (command == 'T') queueAlertMail(true);
+    if (command == 'M') {
+      Serial.println("Diagnóstico: simulando ciclo completo de movimiento");
+      logEvent(2); queueAlertMail(); queueCloudEvent(CLOUD_MOTION_START, true);
+      logEvent(3); queueCloudEvent(CLOUD_MOTION_END, false);
+    }
+  }
+}
 
 void sendEvents() {
   String json; json.reserve(14000); json = "{\"events\":[";
@@ -96,6 +117,8 @@ void setup() {
   });
   server.onNotFound([]() { server.send(404, "application/json", "{\"error\":\"Recurso no encontrado\"}"); });
   server.begin();
+  tlsMutex = xSemaphoreCreateMutex();
+  if (!tlsMutex) Serial.println("ERROR: no se pudo crear el control de conexiones TLS");
   startMail();
   startCloudSync();
   Serial.println("Servidor HTTP iniciado. Conectando a Wi-Fi...");
@@ -103,11 +126,9 @@ void setup() {
 
 void loop() {
   const int transition = motion.update(millis(), digitalRead(PIR_PIN) == HIGH);
-  if (transition) logEvent(transition);
-  if (transition == 2) queueAlertMail();
-  if (transition == 2) queueCloudEvent(CLOUD_MOTION_START, true);
-  if (transition == 3) queueCloudEvent(CLOUD_MOTION_END, false);
+  handleMotionTransition(transition);
   pollMail();
+  pollDiagnostics();
   pollCloudSync(motion.active);
   server.handleClient();
   const bool connected = WiFi.status() == WL_CONNECTED;

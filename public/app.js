@@ -1,8 +1,11 @@
 const $ = selector => document.querySelector(selector);
+const bootView = $("#bootView");
 const loginView = $("#loginView");
 const dashboardView = $("#dashboardView");
-const logoutButton = $("#logout");
+const brandActions = $("#brandActions");
+const accountDialog = $("#accountDialog");
 let timer;
+let currentUser;
 
 const boliviaTime = value => value ? new Intl.DateTimeFormat("es-BO", {
   dateStyle: "medium", timeStyle: "medium", timeZone: "America/La_Paz"
@@ -18,14 +21,19 @@ const api = async (url, options) => {
   if (!response.ok) { const error = new Error(data.error || "Solicitud fallida"); error.status = response.status; throw error; }
   return data;
 };
-
+function startPolling() { clearInterval(timer); timer = setInterval(refresh, 15000); }
 function showLogin(message = "") {
-  clearInterval(timer); loginView.classList.remove("hidden"); dashboardView.classList.add("hidden"); logoutButton.classList.add("hidden");
+  clearInterval(timer); bootView.classList.add("hidden"); loginView.classList.remove("hidden"); dashboardView.classList.add("hidden"); brandActions.classList.add("hidden");
   $("#loginError").textContent = message;
 }
-function showDashboard() { loginView.classList.add("hidden"); dashboardView.classList.remove("hidden"); logoutButton.classList.remove("hidden"); }
+function showDashboard() {
+  bootView.classList.add("hidden"); loginView.classList.add("hidden"); dashboardView.classList.remove("hidden"); brandActions.classList.remove("hidden");
+}
+function showBootError(message) {
+  $("#bootText").textContent = message; $("#retryButton").classList.remove("hidden");
+}
 function render(data) {
-  showDashboard();
+  currentUser = data.user; showDashboard();
   $("#welcome").textContent = `${data.user.name} · ${data.user.role}`;
   const device = data.devices[0];
   if (!device) { $("#dashboardError").textContent = "No existe un dispositivo configurado en Supabase."; return; }
@@ -47,15 +55,31 @@ function render(data) {
   $("#emptyEvents").classList.toggle("hidden", data.events.length > 0);
   $("#dashboardError").textContent = "";
 }
-async function refresh() {
+async function refresh(initial = false) {
   try { render(await api("/api/dashboard")); $("#refreshText").textContent = `Actualizado ${new Date().toLocaleTimeString("es-BO")}`; }
-  catch (error) { if (error.status === 401) showLogin(); else $("#dashboardError").textContent = error.message; }
+  catch (error) {
+    if (error.status === 401) showLogin();
+    else if (initial) showBootError("No se pudo conectar con el servicio. Comprueba tu conexión y reintenta.");
+    else $("#dashboardError").textContent = error.message;
+  }
 }
 $("#loginForm").addEventListener("submit", async event => {
   event.preventDefault(); $("#loginError").textContent = "";
   const fields = new FormData(event.currentTarget);
-  try { await api("/api/login", { method: "POST", body: JSON.stringify({ username: fields.get("username"), password: fields.get("password") }) }); await refresh(); timer = setInterval(refresh, 15000); }
+  try { await api("/api/login", { method: "POST", body: JSON.stringify({ username: fields.get("username"), password: fields.get("password") }) }); event.currentTarget.reset(); await refresh(); startPolling(); }
   catch (error) { $("#loginError").textContent = error.message; }
 });
-logoutButton.addEventListener("click", async () => { try { await api("/api/logout", { method: "POST" }); } finally { showLogin(); } });
-refresh().then(() => { if (!loginView.classList.contains("hidden")) return; timer = setInterval(refresh, 15000); });
+$("#logout").addEventListener("click", async () => { try { await api("/api/logout", { method: "POST" }); } finally { showLogin(); } });
+$("#retryButton").addEventListener("click", () => { $("#retryButton").classList.add("hidden"); $("#bootText").textContent = "Validando tu sesión segura…"; refresh(true).then(() => { if (!dashboardView.classList.contains("hidden")) startPolling(); }); });
+$("#accountButton").addEventListener("click", () => { $("#accountForm").reset(); $("#newUsername").value = currentUser?.username || ""; $("#accountMessage").textContent = ""; accountDialog.showModal(); });
+$("#closeAccount").addEventListener("click", () => accountDialog.close());
+$("#accountForm").addEventListener("submit", async event => {
+  event.preventDefault(); const fields = new FormData(event.currentTarget); const password = fields.get("new_password");
+  if (password !== fields.get("confirm_password")) { $("#accountMessage").textContent = "Las contraseñas nuevas no coinciden"; return; }
+  $("#accountMessage").textContent = "";
+  try {
+    const result = await api("/api/account", { method: "PATCH", body: JSON.stringify({ current_password: fields.get("current_password"), new_username: fields.get("new_username"), new_password: password }) });
+    currentUser = result.user; accountDialog.close(); await refresh();
+  } catch (error) { $("#accountMessage").textContent = error.message; }
+});
+refresh(true).then(() => { if (!dashboardView.classList.contains("hidden")) startPolling(); });

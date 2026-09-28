@@ -13,21 +13,30 @@
     <header class="brand">
       <img src="/favicon.svg" alt="Logo de Vigía" width="58" height="58">
       <div><p>VIGÍA</p><h1>Monitoreo en tiempo real</h1></div>
-      <button id="logout" class="ghost hidden" type="button">Cerrar sesión</button>
+      <div id="brandActions" class="brand-actions hidden">
+        <button id="accountButton" class="ghost" type="button">Mi cuenta</button>
+        <button id="logout" class="ghost" type="button">Cerrar sesión</button>
+      </div>
     </header>
 
-    <section id="loginView" class="login-card">
+    <section id="bootView" class="boot-card" aria-live="polite">
+      <span class="loader" aria-hidden="true"></span>
+      <h2>Abriendo Vigía</h2>
+      <p id="bootText">Validando tu sesión segura…</p>
+      <button id="retryButton" class="ghost hidden" type="button">Reintentar</button>
+    </section>
+
+    <section id="loginView" class="login-card hidden">
       <div>
         <span class="eyebrow">Acceso administrativo</span>
         <h2>Centro de control</h2>
         <p>Consulta el estado del ESP32, su configuración y el historial de movimiento.</p>
       </div>
       <form id="loginForm">
-        <label>Usuario<input name="username" autocomplete="username" value="admin" required maxlength="80"></label>
-        <label>Contraseña<input name="password" type="password" autocomplete="current-password" value="admin" required maxlength="200"></label>
+        <label>Usuario<input name="username" autocomplete="username" required maxlength="80"></label>
+        <label>Contraseña<input name="password" type="password" autocomplete="current-password" required maxlength="200"></label>
         <button type="submit">Ingresar</button>
         <p id="loginError" class="error" role="alert"></p>
-        <small>Acceso inicial de demostración: admin / admin</small>
       </form>
     </section>
 
@@ -55,6 +64,17 @@
       <p id="dashboardError" class="error" role="alert"></p>
     </section>
   </main>
+  <dialog id="accountDialog">
+    <form id="accountForm" method="dialog">
+      <div class="dialog-title"><div><span class="eyebrow">Seguridad</span><h3>Actualizar cuenta</h3></div><button id="closeAccount" class="icon-button" type="button" aria-label="Cerrar">×</button></div>
+      <label>Nuevo usuario<input id="newUsername" name="new_username" autocomplete="username" required minlength="3" maxlength="40" pattern="[a-zA-Z0-9._-]+"></label>
+      <label>Contraseña actual<input name="current_password" type="password" autocomplete="current-password" required maxlength="200"></label>
+      <label>Nueva contraseña <small>(opcional si solo cambias el usuario)</small><input name="new_password" type="password" autocomplete="new-password" minlength="8" maxlength="200"></label>
+      <label>Confirmar nueva contraseña<input name="confirm_password" type="password" autocomplete="new-password" minlength="8" maxlength="200"></label>
+      <p id="accountMessage" class="error" role="alert"></p>
+      <button type="submit">Guardar cambios</button>
+    </form>
+  </dialog>
   <script src="/app.js" defer></script>
 </body>
 </html>

@@ -142,7 +142,7 @@ Edita el `.env` local, que está ignorado por Git, y completa:
 CLOUD_API_URL="https://TU-PROYECTO.vercel.app/api/device-ingest"
 DEVICE_API_KEY="EL_MISMO_SECRETO_CONFIGURADO_EN_VERCEL"
 DEVICE_ID="vigia-esp32-01"
-FIRMWARE_VERSION="1.2.0"
+FIRMWARE_VERSION="1.3.0"
 ```
 
 Luego carga el dispositivo conectado:
@@ -156,3 +156,7 @@ pio device monitor --port /dev/cu.usbserial-0001 --baud 115200
 En el monitor serie debe aparecer `Nube: heartbeat -> HTTP 202` dentro de los primeros 15 segundos. En la web el estado pasa a **Monitor activo**. Un movimiento agrega `motion_start` y, cuando la señal PIR baja, `motion_end`. Si se desconecta el ESP32, la web lo muestra sin conexión después de aproximadamente 45 segundos.
 
 El envío usa HTTPS y valida el certificado TLS con las raíces de Google Trust Services y la raíz ISRG Root X1 de Let's Encrypt incluidas en el firmware. Los eventos pendientes viven en RAM: una caída de red o reinicio puede perder un evento, pero el próximo latido recupera el estado de conectividad.
+
+El botón **Mi cuenta** permite cambiar el nombre de usuario y, opcionalmente, la contraseña. Exige la contraseña actual y la nueva contraseña debe tener al menos 8 caracteres. Al recargar la página se valida primero la cookie firmada y se conserva el panel abierto sin mostrar brevemente el formulario de acceso.
+
+Gmail y Vercel usan conexiones TLS que consumen bastante memoria en el ESP32. El firmware las serializa con un mutex para impedir dos handshakes simultáneos. En el monitor serie, `T` prueba únicamente el correo y `M` simula un ciclo completo de movimiento: correo, `motion_start` y `motion_end`. Estos comandos son diagnósticos USB y no están expuestos por la web.

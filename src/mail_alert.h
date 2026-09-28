@@ -119,7 +119,11 @@ void mailWorker(void*) {
     // Up to 60s waiting for network/time. No automatic resend after SMTP DATA.
     for(int wait=0;wait<60 && (WiFi.status()!=WL_CONNECTED || time(nullptr)<1700000000);++wait)
       vTaskDelay(pdMS_TO_TICKS(1000));
-    if(WiFi.status()==WL_CONNECTED && time(nullptr)>1700000000) result=sendAlertMail(job);
+    if(WiFi.status()==WL_CONNECTED && time(nullptr)>1700000000 && tlsMutex) {
+      xSemaphoreTake(tlsMutex,portMAX_DELAY);
+      result=sendAlertMail(job);
+      xSemaphoreGive(tlsMutex);
+    }
     xQueueSend(mailResults,&result,portMAX_DELAY);
   }
 }
@@ -152,6 +156,4 @@ void pollMail() {
     mailState=result==5?"Aceptado por Gmail":result==9?"Resultado incierto":"Error de envio";
     logEvent(result);Serial.printf("Correo: %s\n",mailState);
   }
-  // USB-only diagnostic: T sends a labeled test without consuming motion cooldown.
-  while(Serial.available()) { char c=Serial.read();if(c=='T')queueAlertMail(true); }
 }

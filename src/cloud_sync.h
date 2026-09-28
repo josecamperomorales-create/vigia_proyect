@@ -34,24 +34,31 @@ void cloudWorker(void*) {
   for (;;) {
     if (xQueueReceive(cloudQueue, &job, portMAX_DELAY) != pdTRUE) continue;
     if (WiFi.status() != WL_CONNECTED) { cloudStateCode = 5; continue; }
+    if (!tlsMutex) { cloudStateCode = 4; continue; }
+    xSemaphoreTake(tlsMutex, portMAX_DELAY);
     cloudStateCode = 2;
     WiFiClientSecure client;
     client.setCACert(CLOUD_CA);
+    client.setHandshakeTimeout(12);
+    client.setTimeout(12000);
     HTTPClient http;
     http.setConnectTimeout(10000);
     http.setTimeout(12000);
-    if (!http.begin(client, CLOUD_API_URL)) { cloudStateCode = 4; continue; }
-    http.addHeader("Content-Type", "application/json");
-    http.addHeader("Authorization", String("Bearer ") + DEVICE_API_KEY);
     const char* type = job.type == CLOUD_MOTION_START ? "motion_start" : job.type == CLOUD_MOTION_END ? "motion_end" : "heartbeat";
-    String payload;
-    payload.reserve(420);
-    payload = String("{\"device_id\":\"") + DEVICE_ID + "\",\"display_name\":\"Vigía ESP32 principal\",\"type\":\"" + type +
-      "\",\"wifi_rssi\":" + String(WiFi.RSSI()) + ",\"uptime_seconds\":" + String(job.uptime) +
-      ",\"firmware_version\":\"" + FIRMWARE_VERSION + "\",\"local_ip\":\"" + WiFi.localIP().toString() +
-      "\",\"motion_active\":" + (job.motionActive ? "true" : "false") + ",\"epoch\":" + String(job.epoch) + "}";
-    const int status = http.POST(payload);
-    http.end();
+    int status = -1;
+    if (http.begin(client, CLOUD_API_URL)) {
+      http.addHeader("Content-Type", "application/json");
+      http.addHeader("Authorization", String("Bearer ") + DEVICE_API_KEY);
+      String payload;
+      payload.reserve(420);
+      payload = String("{\"device_id\":\"") + DEVICE_ID + "\",\"display_name\":\"Vigía ESP32 principal\",\"type\":\"" + type +
+        "\",\"wifi_rssi\":" + String(WiFi.RSSI()) + ",\"uptime_seconds\":" + String(job.uptime) +
+        ",\"firmware_version\":\"" + FIRMWARE_VERSION + "\",\"local_ip\":\"" + WiFi.localIP().toString() +
+        "\",\"motion_active\":" + (job.motionActive ? "true" : "false") + ",\"epoch\":" + String(job.epoch) + "}";
+      status = http.POST(payload);
+      http.end();
+    }
+    xSemaphoreGive(tlsMutex);
     cloudStateCode = status >= 200 && status < 300 ? 3 : 4;
     Serial.printf("Nube: %s -> HTTP %d\n", type, status);
   }
@@ -64,7 +71,10 @@ void startCloudSync() {
   }
   cloudQueue = xQueueCreate(10, sizeof(CloudJob));
   if (!cloudQueue) { cloudStateCode = 4; Serial.println("Nube: no se pudo crear la cola"); return; }
-  xTaskCreatePinnedToCore(cloudWorker, "vigia-cloud", 8192, nullptr, 1, &cloudTaskHandle, 0);
+  if (xTaskCreatePinnedToCore(cloudWorker, "vigia-cloud", 8192, nullptr, 1, &cloudTaskHandle, 0) != pdPASS) {
+    vQueueDelete(cloudQueue); cloudQueue = nullptr; cloudStateCode = 4;
+    Serial.println("Nube: no se pudo iniciar la tarea"); return;
+  }
   lastCloudHeartbeat = millis() - CLOUD_HEARTBEAT_INTERVAL_MS;
 }
 
@@ -73,6 +83,7 @@ void pollCloudSync(bool motionActive) {
   const uint32_t now = millis();
   if (now - lastCloudHeartbeat >= CLOUD_HEARTBEAT_INTERVAL_MS) {
     lastCloudHeartbeat = now;
-    queueCloudEvent(CLOUD_HEARTBEAT, motionActive);
+    // Heartbeats are disposable. Never let them accumulate ahead of motion events.
+    if (uxQueueMessagesWaiting(cloudQueue) == 0) queueCloudEvent(CLOUD_HEARTBEAT, motionActive);
   }
 }
