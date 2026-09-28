@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="es">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Vigía · ESP32</title>
+<meta name="theme-color" content="#075e65">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='18' fill='%23075e65'/%3E%3Cpath d='M10 33Q32 8 54 33Q32 58 10 33Z' fill='none' stroke='%23fff' stroke-width='3.5' stroke-linejoin='round'/%3E%3Ccircle cx='32' cy='33' r='10' fill='%238de0cf'/%3E%3Ccircle cx='32' cy='33' r='4' fill='%23075e65'/%3E%3Cpath d='M32 33L40 21' stroke='%23fff' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E">
+<style>
+body{font:16px system-ui,sans-serif;background:#eef3f5;color:#193342;margin:0;padding:32px 20px}main{max-width:620px;margin:auto;background:white;padding:28px;border-radius:16px}h1{margin-top:0}p{line-height:1.5}dl{display:grid;grid-template-columns:1fr 1fr;gap:16px}dd{margin:0;overflow-wrap:anywhere}dt{color:#526775}button{background:#075e65;color:white;border:0;border-radius:8px;padding:12px 18px;font:inherit;cursor:pointer}small{color:#526775}#message{min-height:24px}
+table{width:100%;border-collapse:collapse;font-size:14px}td,th{text-align:left;padding:10px 6px;border-bottom:1px solid #dde5e9}.alert{color:#a32323;font-weight:bold}#sensor{padding:14px;background:#eef3f5;border-radius:8px} .tablewrap{overflow:auto}
+.brand{display:flex;align-items:center;gap:14px;margin-bottom:22px}.brand-icon{width:64px;height:64px;flex:none}.brand h1{font-size:32px;line-height:1.1;margin:0;letter-spacing:-1px}.brand p{margin:5px 0 0;color:#526775;font-size:13px;letter-spacing:.05em}a{color:#075e65}@media(max-width:420px){body{padding:16px 12px}main{padding:20px}.brand-icon{width:52px;height:52px}.brand h1{font-size:28px}}
+</style>
+<main>
+<header class="brand">
+<svg class="brand-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+<rect width="64" height="64" rx="18" fill="#075e65"/>
+<path d="M10 33Q32 8 54 33Q32 58 10 33Z" fill="none" stroke="#fff" stroke-width="3.5" stroke-linejoin="round"/>
+<circle cx="32" cy="33" r="10" fill="#8de0cf"/>
+<circle cx="32" cy="33" r="4" fill="#075e65"/>
+<path d="M32 33L40 21" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/>
+</svg>
+<div><h1>Vigía</h1><p>MONITOREO DE MOVIMIENTO</p></div>
+</header>
+<p>Panel local del ESP32. Se actualiza cada segundo.</p>
+<p id="sensor" role="status">Consultando sensor…</p>
+<dl>
+<dt>Conexión a Wi-Fi</dt><dd id="wifi">Consultando…</dd>
+<dt>IP en tu red</dt><dd id="ip">—</dd>
+<dt>Red propia</dt><dd id="ap">—</dd>
+<dt>IP de acceso directo</dt><dd id="apip">—</dd>
+<dt>Dispositivos conectados</dt><dd id="clients">—</dd>
+<dt>Tiempo encendido</dt><dd id="uptime">—</dd>
+<dt>Correo de alerta</dt><dd id="mail">Consultando…</dd>
+<dt>Hora de Bolivia</dt><dd id="clock">Esperando internet…</dd>
+</dl>
+<button id="refresh" type="button">Actualizar estado</button>
+<p id="message" role="status"></p>
+<h2>Registro de detecciones y alertas</h2>
+<p><small>Últimos 100 eventos; se borran al reiniciar. Una alerta indica señal del PIR, no confirma una intrusión. Una señal baja tampoco confirma que no haya personas.</small></p>
+<div class="tablewrap"><table><thead><tr><th>Hora / encendido</th><th>Evento</th></tr></thead><tbody id="events"><tr><td colspan="2">Consultando…</td></tr></tbody></table></div>
+<p id="logmessage" role="status"></p>
+<small>Servicios: <a href="/api/events">eventos JSON</a> · <a href="/api/status">estado JSON</a> · <a href="/api/time">hora JSON</a>. La red propia permite acceder al ESP32; no comparte internet con otros dispositivos.</small>
+</main>
+<script>
+const put=(id,value)=>document.getElementById(id).textContent=value;
+let busy=false;
+async function refresh(){
+ if(busy)return;busy=true;
+ try{
+  const response=await fetch('/api/status',{cache:'no-store',signal:AbortSignal.timeout(6000)});
+  if(!response.ok)throw Error('Respuesta inválida');
+  const data=await response.json();
+  put('mail',data.mail_state||'Sin información');
+  put('wifi',data.wifi_connected?'Conectado':'Sin conexión; reintentando');
+  put('ip',data.station_ip);put('ap',data.ap_ssid);put('apip',data.ap_ip);
+  put('clients',data.ap_clients);put('uptime',data.uptime_seconds+' segundos');
+  put('clock',data.time_synced?new Date(data.epoch*1000).toLocaleString('es-BO',{timeZone:'America/La_Paz'}):'Esperando sincronización por internet…');
+  put('sensor',!data.sensor_ready ? 'Estabilizando sensor: '+data.warmup_remaining+' s' : data.motion_active ? 'ALERTA: movimiento detectado (PIR activo)' : 'Sin señal de movimiento');
+  document.getElementById('sensor').classList.toggle('alert',data.motion_active);
+  put('message','Estado actualizado.');
+  try {
+   const logResponse=await fetch('/api/events',{cache:'no-store',signal:AbortSignal.timeout(6000)});
+   if(!logResponse.ok)throw Error('Eventos no disponibles');
+   const logs=await logResponse.json();
+   const names=['Inicio: estabilizando PIR','Sensor listo','Movimiento detectado · ALERTA iniciada','PIR volvió a nivel bajo · fin de alerta','Correo en cola / enviando','Correo aceptado por Gmail','Error al enviar correo','Correo omitido: intervalo de 10 segundos o envío en curso','Evento','Envío incierto: sin confirmación de Gmail'];
+   const rows=logs.events.map(e=>{
+    const row=document.createElement('tr');
+    const date=document.createElement('td');const message=document.createElement('td');
+    date.textContent=e.epoch ? new Date(e.epoch*1000).toLocaleString('es-BO',{timeZone:'America/La_Paz'}) : '+'+e.uptime_seconds+' s desde inicio';
+    message.textContent=names[e.kind]||'Evento desconocido';
+    if(e.kind===2)message.className='alert';
+    row.append(date,message);return row;
+   });
+   document.getElementById('events').replaceChildren(...rows);
+   put('logmessage',rows.length?'':'Todavía no hay eventos.');
+  }catch(error){put('logmessage','No se pudo actualizar el registro; los datos visibles pueden estar desactualizados.');}
+ }catch(error){put('sensor','ESP32 sin respuesta: estado desconocido');put('message','No se pudo contactar al ESP32. Revisa tu conexión y vuelve a intentar.');}
+ finally{busy=false;}
+}
+document.getElementById('refresh').addEventListener('click',refresh);
+refresh();setInterval(refresh,1000);
+</script>
+</html>
