@@ -76,7 +76,6 @@ uint8_t sendAlertMail(const MailJob& job) {
   body+="Tiempo encendido: "+String(job.uptime)+" segundos\r\n";
   body+="Dispositivo: Vigia ESP32\r\nRed: "+WiFi.SSID()+"\r\nIP local: "+WiFi.localIP().toString()+"\r\n\r\n";
   body+=job.test?"Este mensaje verifica el canal de alertas. No corresponde a una deteccion real.\r\n":"El sensor PIR registro actividad compatible con movimiento. Verifica el area.\r\n";
-  body+="El PIR detecta movimiento; esta alerta por si sola no confirma una intrusion.\r\n";
 
   String html="<!doctype html><html><body style=\"margin:0;padding:0;background:#edf3f3;font-family:Arial,Helvetica,sans-serif;color:#17383b\">";
   html+="<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"background:#edf3f3;padding:28px 12px\"><tr><td align=\"center\">";
