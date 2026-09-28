@@ -25,6 +25,7 @@ void logEvent(uint8_t kind) {
   Serial.printf("Evento %lu | tipo %u | GPIO27=%d\n", static_cast<unsigned long>(eventId), kind, digitalRead(PIR_PIN));
 }
 #include "mail_alert.h"
+#include "cloud_sync.h"
 
 void sendEvents() {
   String json; json.reserve(14000); json = "{\"events\":[";
@@ -63,6 +64,7 @@ void sendStatus() {
   json += ",\"time_synced\":";
   json += now > 1700000000 ? "true" : "false";
   json += ",\"mail_state\":" + jsonString(mailState);
+  json += ",\"cloud_state\":" + jsonString(cloudStateText());
   json += ",\"sensor_ready\":"; json += motion.ready ? "true" : "false";
   json += ",\"motion_active\":"; json += motion.active ? "true" : "false";
   json += ",\"warmup_remaining\":" + String(motion.ready ? 0 : (60000 - millis() + 999) / 1000);
@@ -95,6 +97,7 @@ void setup() {
   server.onNotFound([]() { server.send(404, "application/json", "{\"error\":\"Recurso no encontrado\"}"); });
   server.begin();
   startMail();
+  startCloudSync();
   Serial.println("Servidor HTTP iniciado. Conectando a Wi-Fi...");
 }
 
@@ -102,7 +105,10 @@ void loop() {
   const int transition = motion.update(millis(), digitalRead(PIR_PIN) == HIGH);
   if (transition) logEvent(transition);
   if (transition == 2) queueAlertMail();
+  if (transition == 2) queueCloudEvent(CLOUD_MOTION_START, true);
+  if (transition == 3) queueCloudEvent(CLOUD_MOTION_END, false);
   pollMail();
+  pollCloudSync(motion.active);
   server.handleClient();
   const bool connected = WiFi.status() == WL_CONNECTED;
   if (connected && !previouslyConnected) {

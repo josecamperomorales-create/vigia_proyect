@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#071610">
+  <title>Vigía · Monitoreo en tiempo real</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="brand">
+      <img src="/favicon.svg" alt="Logo de Vigía" width="58" height="58">
+      <div><p>VIGÍA</p><h1>Monitoreo en tiempo real</h1></div>
+      <button id="logout" class="ghost hidden" type="button">Cerrar sesión</button>
+    </header>
+
+    <section id="loginView" class="login-card">
+      <div>
+        <span class="eyebrow">Acceso administrativo</span>
+        <h2>Centro de control</h2>
+        <p>Consulta el estado del ESP32, su configuración y el historial de movimiento.</p>
+      </div>
+      <form id="loginForm">
+        <label>Usuario<input name="username" autocomplete="username" value="admin" required maxlength="80"></label>
+        <label>Contraseña<input name="password" type="password" autocomplete="current-password" value="admin" required maxlength="200"></label>
+        <button type="submit">Ingresar</button>
+        <p id="loginError" class="error" role="alert"></p>
+        <small>Acceso inicial de demostración: admin / admin</small>
+      </form>
+    </section>
+
+    <section id="dashboardView" class="hidden">
+      <div class="welcome"><div><span class="eyebrow">Panel protegido</span><h2 id="welcome">Hola</h2></div><p id="refreshText">Actualización cada 15 s</p></div>
+      <section class="hero-status">
+        <div><span id="liveDot" class="status-dot"></span><span id="liveLabel">Consultando…</span></div>
+        <strong id="deviceName">Vigía ESP32</strong>
+        <p id="lastSeen">Esperando datos del dispositivo</p>
+      </section>
+      <section class="metrics" aria-label="Estado del monitor">
+        <article><span>Sensor</span><strong id="motion">—</strong><small>Estado del PIR</small></article>
+        <article><span>Señal Wi-Fi</span><strong id="rssi">—</strong><small id="ip">Sin IP reportada</small></article>
+        <article><span>Tiempo activo</span><strong id="uptime">—</strong><small id="firmware">Firmware —</small></article>
+      </section>
+      <section class="panel">
+        <div class="panel-title"><div><span class="eyebrow">Supabase</span><h3>Configuración registrada</h3></div></div>
+        <div id="configGrid" class="config-grid"></div>
+      </section>
+      <section class="panel">
+        <div class="panel-title"><div><span class="eyebrow">Últimos 100</span><h3>Registro de movimiento</h3></div><span id="eventCount" class="pill">0 eventos</span></div>
+        <div class="table-wrap"><table><thead><tr><th>Evento</th><th>Fecha y hora (Bolivia)</th><th>Dispositivo</th><th>Tiempo activo</th></tr></thead><tbody id="eventRows"></tbody></table></div>
+        <p id="emptyEvents" class="empty">Todavía no se registraron movimientos en la nube.</p>
+      </section>
+      <p id="dashboardError" class="error" role="alert"></p>
+    </section>
+  </main>
+  <script src="/app.js" defer></script>
+</body>
+</html>

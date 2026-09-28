@@ -90,3 +90,69 @@ Prueba SMTP en hardware: el ESP32 envió por TLS el mensaje `[Vigia] Prueba de c
 Corrección posterior: el intervalo de alertas se redujo de 300 a 30 segundos y los correos de diagnóstico dejaron de consumir ese intervalo. Se verificaron dos envíos consecutivos desde el ESP32; Gmail aceptó ambos. Una nueva alerta real requiere que el PIR primero vuelva a nivel bajo y después detecte otro movimiento. El firmware no repite correos mientras la misma señal permanezca activa.
 
 Formato actual del correo: mensaje multipart con versión HTML y texto alternativo, asunto UTF-8 y diseño adaptable. Muestra el timestamp del evento en hora de Bolivia con precisión de segundos (`BOT`, UTC−04:00), marca ISO 8601, tiempo encendido, dispositivo e IP local. El intervalo actual de alertas reales es de 10 segundos. El formato visual fue cargado en el ESP32 y Gmail aceptó el correo de prueba.
+
+## Panel en Vercel y datos en Supabase
+
+La carpeta `public/` contiene el panel de internet. El navegador inicia sesión contra funciones de Vercel en `api/`; esas funciones consultan Supabase con una clave privada que nunca llega al navegador ni al ESP32. El dispositivo se autentica con una clave exclusiva y envía un latido cada 15 segundos, además del inicio y fin de cada movimiento. El panel consulta cada 15 segundos y considera al monitor desconectado cuando pasan más de 45 segundos sin latido.
+
+### 1. Crear la base en Supabase
+
+1. Crea un proyecto en https://database.new y espera a que termine su preparación.
+2. Abre **SQL Editor**, crea una consulta y pega el contenido completo de `supabase/migrations/001_initial.sql`; pulsa **Run** una vez.
+3. En **Table Editor** deben aparecer `dashboard_users`, `devices`, `device_config` y `motion_events`.
+4. En **Project Settings → API** copia **Project URL** y una **Secret key** (`sb_secret_...`). Si tu proyecto todavía usa claves heredadas, sirve la clave `service_role`. Nunca uses o publiques esta clave en el ESP32, el HTML o GitHub.
+
+La migración activa RLS y bloquea el acceso directo de `anon` y `authenticated`. Crea el usuario inicial `admin` con contraseña `admin`, el dispositivo `vigia-esp32-01` y su configuración. El inicio de sesión es deliberadamente sencillo y no usa Supabase Auth/OAuth. Para cambiar de inmediato la contraseña inicial, ejecuta en SQL Editor:
+
+```sql
+update public.dashboard_users
+set password_hash = extensions.crypt('UNA_CLAVE_NUEVA', extensions.gen_salt('bf', 12))
+where username = 'admin';
+```
+
+### 2. Generar secretos
+
+Ejecuta dos veces este comando y guarda resultados diferentes:
+
+```sh
+openssl rand -hex 32
+```
+
+Uno será `SESSION_SECRET`, que firma la sesión web durante 8 horas. El otro será `DEVICE_API_KEY`, compartido únicamente entre Vercel y el `.env` privado del ESP32.
+
+### 3. Importar GitHub en Vercel
+
+1. En https://vercel.com/new elige **Import Git Repository** y selecciona `josecamperomorales-create/vigia_proyect`.
+2. Usa **Framework Preset: Other** y **Root Directory: `.`**. No hace falta configurar Build Command ni Output Directory.
+3. Antes de desplegar, agrega estas variables para **Production**:
+   - `SUPABASE_URL`: Project URL copiada de Supabase.
+   - `SUPABASE_SECRET_KEY`: Secret key o `service_role` de Supabase.
+   - `SESSION_SECRET`: primer secreto generado.
+   - `DEVICE_API_KEY`: segundo secreto generado.
+4. Pulsa **Deploy**. Cada `git push` posterior a `main` generará un nuevo despliegue de producción.
+5. Abre la URL `https://...vercel.app`, entra inicialmente con `admin` / `admin` y comprueba que aparece la configuración sembrada desde Supabase.
+
+`.env.vercel.example` documenta los nombres y no contiene secretos reales. Si cambias variables en Vercel, debes volver a desplegar para que el nuevo despliegue las reciba.
+
+### 4. Vincular y recargar el ESP32
+
+Edita el `.env` local, que está ignorado por Git, y completa:
+
+```dotenv
+CLOUD_API_URL="https://TU-PROYECTO.vercel.app/api/device-ingest"
+DEVICE_API_KEY="EL_MISMO_SECRETO_CONFIGURADO_EN_VERCEL"
+DEVICE_ID="vigia-esp32-01"
+FIRMWARE_VERSION="1.2.0"
+```
+
+Luego carga el dispositivo conectado:
+
+```sh
+cd ~/DEVELOPMENT/vigia_proyect
+pio run --target upload --upload-port /dev/cu.usbserial-0001
+pio device monitor --port /dev/cu.usbserial-0001 --baud 115200
+```
+
+En el monitor serie debe aparecer `Nube: heartbeat -> HTTP 202` dentro de los primeros 15 segundos. En la web el estado pasa a **Monitor activo**. Un movimiento agrega `motion_start` y, cuando la señal PIR baja, `motion_end`. Si se desconecta el ESP32, la web lo muestra sin conexión después de aproximadamente 45 segundos.
+
+El envío usa HTTPS y valida el certificado TLS con la raíz ISRG Root X1 de Let's Encrypt incluida en `certs/isrg-root-x1.pem`. Los eventos pendientes viven en RAM: una caída de red o reinicio puede perder un evento, pero el próximo latido recupera el estado de conectividad.

@@ -1,0 +1,12 @@
+{
+  "name": "vigia-monitor",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "check": "node --check public/app.js && node --check api/login.js && node --check api/logout.js && node --check api/dashboard.js && node --check api/device-ingest.js && node --check lib/auth.js && node --check lib/http.js && node --check lib/supabase.js"
+  }
+}
