@@ -65,8 +65,9 @@ async function refresh(initial = false) {
 }
 $("#loginForm").addEventListener("submit", async event => {
   event.preventDefault(); $("#loginError").textContent = "";
-  const fields = new FormData(event.currentTarget);
-  try { await api("/api/login", { method: "POST", body: JSON.stringify({ username: fields.get("username"), password: fields.get("password") }) }); event.currentTarget.reset(); await refresh(); startPolling(); }
+  const form = event.currentTarget;
+  const fields = new FormData(form);
+  try { await api("/api/login", { method: "POST", body: JSON.stringify({ username: fields.get("username"), password: fields.get("password") }) }); form.reset(); await refresh(); startPolling(); }
   catch (error) { $("#loginError").textContent = error.message; }
 });
 $("#logout").addEventListener("click", async () => { try { await api("/api/logout", { method: "POST" }); } finally { showLogin(); } });
