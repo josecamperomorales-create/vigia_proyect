@@ -121,7 +121,7 @@ void mailWorker(void*) {
       vTaskDelay(pdMS_TO_TICKS(1000));
     if(WiFi.status()==WL_CONNECTED && time(nullptr)>1700000000 && tlsMutex) {
       xSemaphoreTake(tlsMutex,portMAX_DELAY);
-      result=sendAlertMail(job);
+      result=(job.test || monitoringAllowed()) ? sendAlertMail(job) : 8;
       xSemaphoreGive(tlsMutex);
     }
     xQueueSend(mailResults,&result,portMAX_DELAY);
@@ -137,6 +137,7 @@ void startMail() {
   }
 }
 void queueAlertMail(bool test=false) {
+  if(!test && !monitoringAllowed())return;
   if(!mailJobs){logEvent(6);return;}
   if(mailBusy || (!test && alertEverQueued && uint32_t(millis()-lastAlertQueued)<ALERT_EMAIL_COOLDOWN_MS)) {
     logEvent(7);return;
@@ -153,7 +154,7 @@ void pollMail() {
   uint8_t result;
   if(mailResults && xQueueReceive(mailResults,&result,0)==pdTRUE) {
     mailBusy=false;
-    mailState=result==5?"Aceptado por Gmail":result==9?"Resultado incierto":"Error de envio";
+    mailState=result==5?"Aceptado por Gmail":result==9?"Resultado incierto":result==8?"Omitido: monitoreo pausado":"Error de envio";
     logEvent(result);Serial.printf("Correo: %s\n",mailState);
   }
 }

@@ -1,80 +1,386 @@
 <!doctype html>
 <html lang="es">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#071610">
-  <title>Vigía · Monitoreo en tiempo real</title>
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css">
-</head>
-<body>
-  <main class="shell">
-    <header class="brand">
-      <img src="/favicon.svg" alt="Logo de Vigía" width="58" height="58">
-      <div><p>VIGÍA</p><h1>Monitoreo en tiempo real</h1></div>
-      <div id="brandActions" class="brand-actions hidden">
-        <button id="accountButton" class="ghost" type="button">Mi cuenta</button>
-        <button id="logout" class="ghost" type="button">Cerrar sesión</button>
-      </div>
-    </header>
-
-    <section id="bootView" class="boot-card" aria-live="polite">
-      <span class="loader" aria-hidden="true"></span>
-      <h2>Abriendo Vigía</h2>
-      <p id="bootText">Validando tu sesión segura…</p>
-      <button id="retryButton" class="ghost hidden" type="button">Reintentar</button>
-    </section>
-
-    <section id="loginView" class="login-card hidden">
-      <div>
-        <span class="eyebrow">Acceso administrativo</span>
-        <h2>Centro de control</h2>
-        <p>Consulta el estado del ESP32, su configuración y el historial de movimiento.</p>
-      </div>
-      <form id="loginForm">
-        <label>Usuario<input name="username" autocomplete="username" required maxlength="80"></label>
-        <label>Contraseña<input name="password" type="password" autocomplete="current-password" required maxlength="200"></label>
-        <button type="submit">Ingresar</button>
-        <p id="loginError" class="error" role="alert"></p>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#eef2f8" />
+    <title>Vigía · Tu hogar, en calma</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="aurora" aria-hidden="true"></div>
+    <main class="shell">
+      <header class="brand glass">
+        <a class="identity" href="/" aria-label="Vigía inicio"
+          ><img src="/favicon.svg" alt="" width="42" height="42" /><span
+            >vigía<span class="brand-dot">.</span></span
+          ></a
+        ><span class="brand-caption">TU HOGAR, EN CALMA</span>
+        <div id="brandActions" class="brand-actions hidden">
+          <button id="accountButton" class="ghost">Mi cuenta</button
+          ><button id="logout" class="ghost">Salir ↗</button>
+        </div>
+      </header>
+      <section id="bootView" class="boot-card glass" aria-live="polite">
+        <span class="loader"></span>
+        <h2>Todo en su lugar.</h2>
+        <p id="bootText">Preparando tu espacio seguro…</p>
+        <button id="retryButton" class="ghost hidden">Reintentar</button>
+      </section>
+      <section id="loginView" class="login-card glass hidden">
+        <div class="login-intro">
+          <span class="eyebrow">UN POCO MÁS DE TRANQUILIDAD</span>
+          <h1>Tu hogar.<br />Siempre cerca.</h1>
+          <p>
+            Un espacio para saber qué ocurre,<br />incluso cuando estás lejos.
+          </p>
+          <div class="login-orb" aria-hidden="true">◉</div>
+          <span class="quiet-label">VIGÍA / MONITOREO INTELIGENTE</span>
+        </div>
+        <form id="loginForm">
+          <span class="eyebrow">BIENVENIDO DE NUEVO</span>
+          <h2>Entra a tu espacio</h2>
+          <p class="muted">Todo lo que necesitas, de un vistazo.</p>
+          <label
+            >Usuario<input
+              name="username"
+              autocomplete="username"
+              required
+              maxlength="80"
+              placeholder="Tu usuario" /></label
+          ><label
+            >Contraseña<input
+              name="password"
+              type="password"
+              autocomplete="current-password"
+              required
+              maxlength="200"
+              placeholder="Tu contraseña" /></label
+          ><button type="submit">Ingresar <span>↗</span></button>
+          <p id="loginError" class="error" role="alert"></p>
+        </form>
+      </section>
+      <section id="dashboardView" class="hidden">
+        <div class="welcome">
+          <div>
+            <span class="eyebrow">TU ESPACIO SEGURO</span>
+            <h1>Todo bajo tu mirada<span class="brand-dot">.</span></h1>
+            <p id="welcome" class="muted"></p>
+          </div>
+          <div class="sync-label">
+            <span class="status-dot alive"></span
+            ><span id="refreshText">Sincronizando</span>
+          </div>
+        </div>
+        <section class="hero glass">
+          <div class="hero-copy">
+            <div class="pill">
+              <span id="liveDot" class="status-dot"></span
+              ><span id="liveLabel">Conectando</span>
+            </div>
+            <h2 id="protectionTitle">Conectando con tu hogar</h2>
+            <p id="protectionDescription">Consultando el estado del monitor.</p>
+            <div class="hero-footer">
+              <span id="deviceName">Vigía ESP32</span
+              ><span id="lastSeen"></span>
+            </div>
+          </div>
+          <div class="radar" aria-hidden="true">
+            <div class="radar-ring"></div>
+            <div class="radar-ring inner"></div>
+            <div class="radar-core">⌂</div>
+            <span class="radar-point"></span>
+          </div>
+          <div class="arm-control">
+            <label class="switch-row"
+              ><span
+                ><strong>Monitoreo</strong
+                ><small id="armHint">Control manual</small></span
+              ><input
+                id="monitorSwitch"
+                type="checkbox"
+                role="switch"
+                aria-label="Activar monitoreo" /><span
+                class="switch-track"
+              ></span
+            ></label>
+            <p id="configSync" aria-live="polite">Consultando configuración</p>
+          </div>
+        </section>
+        <div class="monitor-heading">
+          <h2>Tu monitor <span class="muted">/ 01</span></h2>
+          <span class="quiet-label">HORA DE BOLIVIA · UTC−04</span>
+        </div>
+        <div
+          class="tabs glass"
+          role="tablist"
+          aria-label="Secciones del monitor"
+        >
+          <button
+            id="tab-overview"
+            role="tab"
+            aria-selected="true"
+            aria-controls="panel-overview"
+            data-tab="overview"
+          >
+            ◫ <span>Vista general</span></button
+          ><button
+            id="tab-activity"
+            role="tab"
+            aria-selected="false"
+            aria-controls="panel-activity"
+            data-tab="activity"
+            tabindex="-1"
+          >
+            ≋ <span>Actividad</span></button
+          ><button
+            id="tab-settings"
+            role="tab"
+            aria-selected="false"
+            aria-controls="panel-settings"
+            data-tab="settings"
+            tabindex="-1"
+          >
+            ⚙ <span>Configuración</span>
+          </button>
+        </div>
+        <section
+          id="panel-overview"
+          role="tabpanel"
+          aria-labelledby="tab-overview"
+        >
+          <div class="metrics">
+            <article class="glass">
+              <span class="metric-icon">◎</span
+              ><span class="eyebrow">DETECCIONES RECIENTES</span
+              ><strong id="detectionCount">—</strong
+              ><small>En los últimos 100 eventos</small>
+            </article>
+            <article class="glass">
+              <span class="metric-icon">⌁</span
+              ><span class="eyebrow">ESTADO DEL SENSOR</span
+              ><strong id="motion">—</strong
+              ><small id="sensorHint">Sensor PIR</small>
+            </article>
+            <article class="glass">
+              <span class="metric-icon">↗</span
+              ><span class="eyebrow">CONEXIÓN WI-FI</span
+              ><strong id="rssi">—</strong
+              ><small id="wifiQuality">Esperando señal</small>
+            </article>
+            <article class="glass">
+              <span class="metric-icon">◷</span
+              ><span class="eyebrow">ÚLTIMA DETECCIÓN</span
+              ><strong id="lastDetection">—</strong
+              ><small id="lastDetectionDate">Sin actividad registrada</small>
+            </article>
+          </div>
+          <div class="overview-grid">
+            <section class="panel glass">
+              <div class="panel-title">
+                <div>
+                  <span class="eyebrow">EL PULSO DE TU HOGAR</span>
+                  <h3>Actividad por hora</h3>
+                </div>
+                <span class="pill">Hoy</span>
+              </div>
+              <p class="muted chart-caption">
+                Detecciones de hoy dentro de los últimos 100 eventos.
+              </p>
+              <div
+                id="activityChart"
+                class="chart"
+                role="img"
+                aria-label="Detecciones por hora"
+              ></div>
+              <div class="chart-axis">
+                <span>00:00</span><span>06:00</span><span>12:00</span
+                ><span>18:00</span><span>23:00</span>
+              </div>
+            </section>
+            <section class="panel glass">
+              <span class="eyebrow">A TU RITMO</span>
+              <h3>Protección que se adapta</h3>
+              <div class="schedule-art" aria-hidden="true">◷</div>
+              <strong id="scheduleSummary">Siempre disponible</strong>
+              <p id="scheduleDetail" class="muted">
+                Configura los momentos en que tu casa se queda sola.
+              </p>
+              <button id="editSchedule" class="ghost">
+                Editar horarios ↗
+              </button>
+            </section>
+          </div>
+          <section class="panel glass">
+            <div class="panel-title">
+              <div>
+                <span class="eyebrow">LO MÁS RECIENTE</span>
+                <h3>Últimos movimientos</h3>
+              </div>
+              <button id="viewActivity" class="ghost">Ver actividad ↗</button>
+            </div>
+            <div id="recentEvents" class="recent-events"></div>
+          </section>
+        </section>
+        <section
+          id="panel-activity"
+          class="hidden"
+          role="tabpanel"
+          aria-labelledby="tab-activity"
+        >
+          <section class="panel glass">
+            <div class="panel-title">
+              <div>
+                <span class="eyebrow">EL HISTORIAL DE TU ESPACIO</span>
+                <h3>Registro de movimiento</h3>
+              </div>
+              <span id="eventCount" class="pill">0 eventos</span>
+            </div>
+            <p class="muted">
+              Últimos 100 eventos registrados mientras el monitoreo estaba
+              habilitado.
+            </p>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Evento</th>
+                    <th>Fecha y hora · Bolivia</th>
+                    <th>Dispositivo</th>
+                  </tr>
+                </thead>
+                <tbody id="eventRows"></tbody>
+              </table>
+            </div>
+            <p id="emptyEvents" class="empty">
+              Todo está en calma. Aquí aparecerán los movimientos registrados.
+            </p>
+          </section>
+        </section>
+        <section
+          id="panel-settings"
+          class="hidden"
+          role="tabpanel"
+          aria-labelledby="tab-settings"
+        >
+          <div class="settings-grid">
+            <section class="panel glass">
+              <span class="eyebrow">PROTECCIÓN A TU MEDIDA</span>
+              <h3>Cuando tú no estás</h3>
+              <p class="muted">
+                Elige los días y las horas en que quieres recibir alertas. Fuera
+                de estas franjas, se omiten los movimientos y los correos.
+              </p>
+              <form id="scheduleForm">
+                <label class="switch-row schedule-toggle"
+                  ><span
+                    ><strong>Usar horarios semanales</strong
+                    ><small
+                      >Desactivado: monitoreo a cualquier hora</small
+                    ></span
+                  ><input
+                    id="scheduleEnabled"
+                    type="checkbox"
+                    role="switch" /><span class="switch-track"></span
+                ></label>
+                <div id="scheduleRows"></div>
+                <div class="schedule-actions">
+                  <button type="button" id="addSlot" class="ghost">
+                    ＋ Añadir franja</button
+                  ><span class="muted">Máximo 28 franjas</span>
+                </div>
+                <p class="hint">
+                  Hora de Bolivia. Si el fin es anterior al inicio, la franja
+                  termina al día siguiente. El inicio se incluye y el fin se
+                  excluye.
+                </p>
+                <p id="scheduleMessage" role="status"></p>
+                <button type="submit" id="saveSchedule">
+                  Guardar horarios ↗
+                </button>
+              </form>
+            </section>
+            <aside>
+              <section class="panel glass">
+                <span class="eyebrow">TU DISPOSITIVO</span>
+                <h3>Pequeño. Siempre atento.</h3>
+                <div id="configGrid" class="config-grid"></div>
+                <p id="firmware" class="quiet-label"></p>
+                <p id="ip" class="quiet-label"></p>
+              </section>
+              <section class="note-card">
+                <span>✦</span>
+                <p>
+                  ¿Volviste antes a casa? Pausa el monitoreo con el interruptor
+                  superior. Tus horarios seguirán guardados.
+                </p>
+              </section>
+            </aside>
+          </div>
+        </section>
+        <p id="dashboardError" class="error" role="alert"></p>
+      </section>
+      <footer>
+        VIGÍA <span>Un hogar conectado. Un poco más de calma.</span
+        ><span>Hecho para cuidar.</span>
+      </footer>
+    </main>
+    <dialog id="accountDialog">
+      <form id="accountForm" method="dialog">
+        <div class="dialog-title">
+          <div>
+            <span class="eyebrow">Seguridad</span>
+            <h3>Actualizar cuenta</h3>
+          </div>
+          <button
+            id="closeAccount"
+            class="icon-button"
+            type="button"
+            aria-label="Cerrar"
+          >
+            ×
+          </button>
+        </div>
+        <label
+          >Nuevo usuario<input
+            id="newUsername"
+            name="new_username"
+            autocomplete="username"
+            required
+            minlength="3"
+            maxlength="40"
+            pattern="[a-zA-Z0-9._-]+"
+        /></label>
+        <label
+          >Contraseña actual<input
+            name="current_password"
+            type="password"
+            autocomplete="current-password"
+            required
+            maxlength="200"
+        /></label>
+        <label
+          >Nueva contraseña <small>(opcional si solo cambias el usuario)</small
+          ><input
+            name="new_password"
+            type="password"
+            autocomplete="new-password"
+            minlength="8"
+            maxlength="200"
+        /></label>
+        <label
+          >Confirmar nueva contraseña<input
+            name="confirm_password"
+            type="password"
+            autocomplete="new-password"
+            minlength="8"
+            maxlength="200"
+        /></label>
+        <p id="accountMessage" class="error" role="alert"></p>
+        <button type="submit">Guardar cambios</button>
       </form>
-    </section>
-
-    <section id="dashboardView" class="hidden">
-      <div class="welcome"><div><span class="eyebrow">Panel protegido</span><h2 id="welcome">Hola</h2></div><p id="refreshText">Actualización cada 15 s</p></div>
-      <section class="hero-status">
-        <div><span id="liveDot" class="status-dot"></span><span id="liveLabel">Consultando…</span></div>
-        <strong id="deviceName">Vigía ESP32</strong>
-        <p id="lastSeen">Esperando datos del dispositivo</p>
-      </section>
-      <section class="metrics" aria-label="Estado del monitor">
-        <article><span>Sensor</span><strong id="motion">—</strong><small>Estado del PIR</small></article>
-        <article><span>Señal Wi-Fi</span><strong id="rssi">—</strong><small id="ip">Sin IP reportada</small></article>
-        <article><span>Tiempo activo</span><strong id="uptime">—</strong><small id="firmware">Firmware —</small></article>
-      </section>
-      <section class="panel">
-        <div class="panel-title"><div><span class="eyebrow">Supabase</span><h3>Configuración registrada</h3></div></div>
-        <div id="configGrid" class="config-grid"></div>
-      </section>
-      <section class="panel">
-        <div class="panel-title"><div><span class="eyebrow">Últimos 100</span><h3>Registro de movimiento</h3></div><span id="eventCount" class="pill">0 eventos</span></div>
-        <div class="table-wrap"><table><thead><tr><th>Evento</th><th>Fecha y hora (Bolivia)</th><th>Dispositivo</th><th>Tiempo activo</th></tr></thead><tbody id="eventRows"></tbody></table></div>
-        <p id="emptyEvents" class="empty">Todavía no se registraron movimientos en la nube.</p>
-      </section>
-      <p id="dashboardError" class="error" role="alert"></p>
-    </section>
-  </main>
-  <dialog id="accountDialog">
-    <form id="accountForm" method="dialog">
-      <div class="dialog-title"><div><span class="eyebrow">Seguridad</span><h3>Actualizar cuenta</h3></div><button id="closeAccount" class="icon-button" type="button" aria-label="Cerrar">×</button></div>
-      <label>Nuevo usuario<input id="newUsername" name="new_username" autocomplete="username" required minlength="3" maxlength="40" pattern="[a-zA-Z0-9._-]+"></label>
-      <label>Contraseña actual<input name="current_password" type="password" autocomplete="current-password" required maxlength="200"></label>
-      <label>Nueva contraseña <small>(opcional si solo cambias el usuario)</small><input name="new_password" type="password" autocomplete="new-password" minlength="8" maxlength="200"></label>
-      <label>Confirmar nueva contraseña<input name="confirm_password" type="password" autocomplete="new-password" minlength="8" maxlength="200"></label>
-      <p id="accountMessage" class="error" role="alert"></p>
-      <button type="submit">Guardar cambios</button>
-    </form>
-  </dialog>
-  <script src="/app.js" defer></script>
-</body>
+    </dialog>
+    <script src="/app.js" defer></script>
+  </body>
 </html>

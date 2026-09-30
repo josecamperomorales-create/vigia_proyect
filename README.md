@@ -160,3 +160,15 @@ El envío usa HTTPS y valida el certificado TLS con las raíces de Google Trust 
 El botón **Mi cuenta** permite cambiar el nombre de usuario y, opcionalmente, la contraseña. Exige la contraseña actual y la nueva contraseña debe tener al menos 8 caracteres. Al recargar la página se valida primero la cookie firmada y se conserva el panel abierto sin mostrar brevemente el formulario de acceso.
 
 Gmail y Vercel usan conexiones TLS que consumen bastante memoria en el ESP32. El firmware las serializa con un mutex para impedir dos handshakes simultáneos. En el monitor serie, `T` prueba únicamente el correo y `M` simula un ciclo completo de movimiento: correo, `motion_start` y `motion_end`. Estos comandos son diagnósticos USB y no están expuestos por la web.
+
+### Monitoreo semanal · Firmware 1.4.0
+
+El monitor web tiene Vista general, Actividad y Configuración. La visualización está inspirada en la guía de materiales de Apple: https://developer.apple.com/design/human-interface-guidelines/materials . El vidrio se usa en navegación y superficies, con contraste, foco visible, navegación por teclado y preferencias de movimiento/transparencia reducidos.
+
+La migración `supabase/migrations/002_monitoring_schedule.sql` añade horarios y confirmación del dispositivo. El interruptor manual es el control general; apagado omite eventos y correos. Encendido respeta las franjas si están habilitadas. Se admiten hasta 28 franjas, varios intervalos por día y cruces de medianoche. Los días usan 0=domingo a 6=sábado; zona America/La_Paz, UTC−04. Inicio inclusivo, fin exclusivo.
+
+`PATCH /api/config` requiere una sesión de administrador y la versión anterior para evitar sobrescribir cambios de otra sesión. `GET /api/config?device_id=…` permite al ESP autenticado consultar una representación compacta. El firmware consulta aproximadamente cada 5 segundos (puede tardar más si hay SMTP/TLS o fallos de red), aplica los horarios localmente y confirma versión/estado en sus reportes. La UI distingue cambios guardados, pendientes y aplicados. Los latidos siguen activos durante las pausas. La API también filtra los eventos recibidos mientras la configuración indica pausa.
+
+Sin internet el ESP mantiene en RAM el último horario; los cambios remotos esperan reconexión. Tras un reinicio espera obtener configuración antes de activar alertas. Un correo ya entregado a Gmail no puede cancelarse al pausar. El botón de diagnóstico USB T envía una prueba explícita aun en pausa; M respeta el control de monitoreo.
+
+El dashboard resume los últimos 100 eventos y lo indica expresamente; no representa conteos históricos completos ni confirma entregas a la bandeja de entrada. Pruebas de horarios: `npm test`. Validación de JS: `npm run check`.

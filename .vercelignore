@@ -1,0 +1,10 @@
+.pio
+.env
+.env.*
+src
+certs
+web
+tests
+scripts
+supabase
+.vscode

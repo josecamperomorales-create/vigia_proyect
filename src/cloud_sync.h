@@ -29,10 +29,34 @@ void queueCloudEvent(CloudEventType type, bool motionActive) {
   else Serial.println("Nube: cola llena; evento omitido");
 }
 
+void fetchMonitoringPolicy() {
+  if(WiFi.status()!=WL_CONNECTED || !tlsMutex)return;
+  xSemaphoreTake(tlsMutex,portMAX_DELAY);
+  WiFiClientSecure client; client.setCACert(CLOUD_CA); client.setHandshakeTimeout(10);
+  HTTPClient http; http.setConnectTimeout(8000); http.setTimeout(8000);
+  String url=CLOUD_API_URL; url.replace("/api/device-ingest", "/api/config?device_id=" + String(DEVICE_ID));
+  if(http.begin(client,url)) {
+    http.addHeader("Authorization",String("Bearer ")+DEVICE_API_KEY);
+    int code=http.GET();
+    if(code==200) {
+      const auto before=policySnapshot();
+      if(applyMonitoringPolicy(http.getString()) && strcmp(before.version,policySnapshot().version)!=0) {
+        Serial.printf("Configuración aplicada: monitoreo %s\n",monitoringAllowed()?"ACTIVO":"PAUSADO");
+        lastCloudHeartbeat=millis()-CLOUD_HEARTBEAT_INTERVAL_MS;
+      }
+    }
+    http.end();
+  }
+  xSemaphoreGive(tlsMutex);
+}
+
 void cloudWorker(void*) {
+  uint32_t lastPolicy=millis()-5000;
   CloudJob job;
   for (;;) {
-    if (xQueueReceive(cloudQueue, &job, portMAX_DELAY) != pdTRUE) continue;
+    if(uint32_t(millis()-lastPolicy)>=5000) { fetchMonitoringPolicy(); lastPolicy=millis(); }
+    if (xQueueReceive(cloudQueue, &job, pdMS_TO_TICKS(500)) != pdTRUE) continue;
+    if(job.type!=CLOUD_HEARTBEAT && !monitoringAllowed())continue;
     if (WiFi.status() != WL_CONNECTED) { cloudStateCode = 5; continue; }
     if (!tlsMutex) { cloudStateCode = 4; continue; }
     xSemaphoreTake(tlsMutex, portMAX_DELAY);
@@ -51,10 +75,11 @@ void cloudWorker(void*) {
       http.addHeader("Authorization", String("Bearer ") + DEVICE_API_KEY);
       String payload;
       payload.reserve(420);
+      const auto policy=policySnapshot();
       payload = String("{\"device_id\":\"") + DEVICE_ID + "\",\"display_name\":\"Vigía ESP32 principal\",\"type\":\"" + type +
         "\",\"wifi_rssi\":" + String(WiFi.RSSI()) + ",\"uptime_seconds\":" + String(job.uptime) +
         ",\"firmware_version\":\"" + FIRMWARE_VERSION + "\",\"local_ip\":\"" + WiFi.localIP().toString() +
-        "\",\"motion_active\":" + (job.motionActive ? "true" : "false") + ",\"epoch\":" + String(job.epoch) + "}";
+        "\",\"motion_active\":" + (job.motionActive ? "true" : "false") + ",\"epoch\":" + String(job.epoch) + ",\"config_version\":\"" + policy.version + "\",\"monitoring_active\":" + (monitoringAllowed()?"true":"false") + "}";
       status = http.POST(payload);
       http.end();
     }
@@ -71,7 +96,7 @@ void startCloudSync() {
   }
   cloudQueue = xQueueCreate(10, sizeof(CloudJob));
   if (!cloudQueue) { cloudStateCode = 4; Serial.println("Nube: no se pudo crear la cola"); return; }
-  if (xTaskCreatePinnedToCore(cloudWorker, "vigia-cloud", 8192, nullptr, 1, &cloudTaskHandle, 0) != pdPASS) {
+  if (xTaskCreatePinnedToCore(cloudWorker, "vigia-cloud", 12288, nullptr, 1, &cloudTaskHandle, 0) != pdPASS) {
     vQueueDelete(cloudQueue); cloudQueue = nullptr; cloudStateCode = 4;
     Serial.println("Nube: no se pudo iniciar la tarea"); return;
   }

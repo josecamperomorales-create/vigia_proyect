@@ -26,11 +26,12 @@ void logEvent(uint8_t kind) {
   if (eventCount < EVENT_LIMIT) ++eventCount;
   Serial.printf("Evento %lu | tipo %u | GPIO27=%d\n", static_cast<unsigned long>(eventId), kind, digitalRead(PIR_PIN));
 }
+#include "monitoring_policy.h"
 #include "mail_alert.h"
 #include "cloud_sync.h"
 
 void handleMotionTransition(int transition) {
-  if (!transition) return;
+  if (!transition || !monitoringAllowed()) return;
   logEvent(transition);
   if (transition == 2) { queueAlertMail(); queueCloudEvent(CLOUD_MOTION_START, true); }
   if (transition == 3) queueCloudEvent(CLOUD_MOTION_END, false);
@@ -40,7 +41,7 @@ void pollDiagnostics() {
   while (Serial.available()) {
     const char command = Serial.read();
     if (command == 'T') queueAlertMail(true);
-    if (command == 'M') {
+    if (command == 'M' && monitoringAllowed()) {
       Serial.println("Diagnóstico: simulando ciclo completo de movimiento");
       logEvent(2); queueAlertMail(); queueCloudEvent(CLOUD_MOTION_START, true);
       logEvent(3); queueCloudEvent(CLOUD_MOTION_END, false);
@@ -125,7 +126,7 @@ void setup() {
 }
 
 void loop() {
-  const int transition = motion.update(millis(), digitalRead(PIR_PIN) == HIGH);
+  const int transition = motion.update(millis(), monitoringAllowed() && digitalRead(PIR_PIN) == HIGH);
   handleMotionTransition(transition);
   pollMail();
   pollDiagnostics();
