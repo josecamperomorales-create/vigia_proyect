@@ -74,12 +74,15 @@ void cloudWorker(void*) {
       http.addHeader("Content-Type", "application/json");
       http.addHeader("Authorization", String("Bearer ") + DEVICE_API_KEY);
       String payload;
-      payload.reserve(420);
+      payload.reserve(620);
       const auto policy=policySnapshot();
       payload = String("{\"device_id\":\"") + DEVICE_ID + "\",\"display_name\":\"Vigía ESP32 principal\",\"type\":\"" + type +
         "\",\"wifi_rssi\":" + String(WiFi.RSSI()) + ",\"uptime_seconds\":" + String(job.uptime) +
         ",\"firmware_version\":\"" + FIRMWARE_VERSION + "\",\"local_ip\":\"" + WiFi.localIP().toString() +
-        "\",\"motion_active\":" + (job.motionActive ? "true" : "false") + ",\"epoch\":" + String(job.epoch) + ",\"config_version\":\"" + policy.version + "\",\"monitoring_active\":" + (monitoringAllowed()?"true":"false") + "}";
+        "\",\"motion_active\":" + (job.motionActive ? "true" : "false") + ",\"epoch\":" + String(job.epoch) + ",\"config_version\":\"" + policy.version + "\",\"monitoring_active\":" + (monitoringAllowed()?"true":"false") +
+        ",\"raw_pir_high\":" + (rawPirHigh?"true":"false") + ",\"raw_pir_edges\":" + String(rawPirEdges) +
+        ",\"sensor_ready\":" + (motion.ready?"true":"false") + ",\"sensor_armed\":" + (motion.armed?"true":"false") +
+        ",\"suppressed_alerts\":" + String(suppressedAlerts) + ",\"free_heap\":" + String(ESP.getFreeHeap()) + "}";
       status = http.POST(payload);
       http.end();
     }

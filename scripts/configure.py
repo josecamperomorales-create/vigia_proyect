@@ -80,7 +80,7 @@ for key, seconds in timings.items():
     contents += f"static const uint32_t {key.removesuffix('_SECONDS')}_MS = {seconds * 1000}UL;\n"
 for key, value in (("CLOUD_API_URL", cloud_url), ("DEVICE_API_KEY", device_key), ("DEVICE_ID", device_id), ("FIRMWARE_VERSION", firmware_version)):
     contents += f"static const char {key}[] = {json.dumps(value, ensure_ascii=True)};\n"
-contents += "static const uint32_t CLOUD_HEARTBEAT_INTERVAL_MS = 15000UL;\n"
+contents += "static const uint32_t CLOUD_HEARTBEAT_INTERVAL_MS = 5000UL;\n"
 roots = (root / "certs/google-roots.pem").read_text()
 contents += 'static const char SMTP_CA[] PROGMEM = R"CERT(' + roots + ')CERT";\n'
 cloud_root = (root / "certs/isrg-root-x1.pem").read_text()

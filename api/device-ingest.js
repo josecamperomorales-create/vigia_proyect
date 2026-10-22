@@ -48,6 +48,15 @@ export default async function handler(request, response) {
       typeof body.monitoring_active === "boolean"
         ? body.monitoring_active
         : null,
+    raw_pir_high:
+      typeof body.raw_pir_high === "boolean" ? body.raw_pir_high : null,
+    raw_pir_edges: integer(body.raw_pir_edges, 0, 4_294_967_295),
+    sensor_ready:
+      typeof body.sensor_ready === "boolean" ? body.sensor_ready : null,
+    sensor_armed:
+      typeof body.sensor_armed === "boolean" ? body.sensor_armed : null,
+    suppressed_alerts: integer(body.suppressed_alerts, 0, 4_294_967_295),
+    free_heap: integer(body.free_heap, 0, 10_000_000),
     updated_at: receivedAt,
   };
   try {
@@ -60,6 +69,27 @@ export default async function handler(request, response) {
       method: "POST",
       body: device,
       prefer: "resolution=merge-duplicates,return=minimal",
+    });
+    await supabase("device_telemetry", {
+      method: "POST",
+      body: {
+        device_id: body.device_id,
+        log_type: body.type,
+        received_at: receivedAt,
+        device_epoch: integer(body.epoch, 0, 4_294_967_295),
+        uptime_seconds: integer(body.uptime_seconds, 0, 4_294_967_295),
+        wifi_rssi: device.wifi_rssi,
+        free_heap: device.free_heap,
+        motion_active: device.motion_active,
+        monitoring_active: device.monitoring_active,
+        sensor_ready: device.sensor_ready,
+        sensor_armed: device.sensor_armed,
+        raw_pir_high: device.raw_pir_high,
+        raw_pir_edges: device.raw_pir_edges,
+        suppressed_alerts: device.suppressed_alerts,
+        firmware_version: device.firmware_version,
+      },
+      prefer: "return=minimal",
     });
     if (EVENTS.has(body.type) && allowed) {
       await supabase("motion_events", {

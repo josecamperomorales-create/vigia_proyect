@@ -3,11 +3,15 @@ const bootView = $("#bootView"),
   loginView = $("#loginView"),
   dashboardView = $("#dashboardView"),
   brandActions = $("#brandActions"),
-  accountDialog = $("#accountDialog");
+  accountDialog = $("#accountDialog"),
+  logsDialog = $("#logsDialog");
 let draftVersion = null;
 let timer,
   currentUser,
   currentDevice,
+  latestTelemetry = [],
+  logsPaused = false,
+  renderedTelemetryIds = new Set(),
   dirty = false,
   saving = false,
   refreshing = false,
@@ -64,6 +68,7 @@ function showLogin(message = "") {
   loginView.classList.remove("hidden");
   dashboardView.classList.add("hidden");
   brandActions.classList.add("hidden");
+  if (logsDialog.open) logsDialog.close();
   $("#loginError").textContent = message;
 }
 function showDashboard() {
@@ -114,20 +119,92 @@ function markDirty() {
   dirty = true;
   $("#scheduleMessage").textContent = "Cambios sin guardar";
 }
+const slotSummary = (slot) => {
+  const overnight = slot.start > slot.end;
+  return `${days[slot.day]} · ${slot.start} → ${slot.end}${overnight ? " · termina al día siguiente" : ""}`;
+};
+function updateSchedulePreview() {
+  const rows = [...document.querySelectorAll(".slot-row")];
+  const enabled = $("#scheduleEnabled").checked;
+  if (!enabled) {
+    $("#schedulePreview").innerHTML =
+      "<strong>Monitoreo continuo</strong><span>Capturará movimiento todos los días y a cualquier hora.</span>";
+    return;
+  }
+  if (!rows.length) {
+    $("#schedulePreview").innerHTML =
+      "<strong>Sin franjas activas</strong><span>No se capturará movimiento hasta que añadas un horario.</span>";
+    return;
+  }
+  $("#schedulePreview").innerHTML =
+    `<strong>${rows.length} ${rows.length === 1 ? "franja activa" : "franjas activas"}</strong><div>${rows
+      .map((row) => {
+        const slot = {
+          day: Number(row.querySelector("select").value),
+          start: row.querySelector(".slot-start").value,
+          end: row.querySelector(".slot-end").value,
+        };
+        return `<span>${esc(slotSummary(slot))}</span>`;
+      })
+      .join(
+        "",
+      )}</div><small>Fuera de estas horas, Vigía no registrará detecciones.</small>`;
+}
 function slotRow(slot = { day: 1, start: "08:00", end: "18:00" }) {
   const row = document.createElement("div");
   row.className = "slot-row";
-  row.innerHTML = `<label>Día<select class="slot-day">${days.map((d, i) => `<option value="${i}" ${i === slot.day ? "selected" : ""}>${d}</option>`).join("")}</select></label><label>Desde<input class="slot-start" type="time" required value="${esc(slot.start)}"></label><label>Hasta<input class="slot-end" type="time" required value="${esc(slot.end)}"></label><button type="button" class="remove-slot" aria-label="Quitar franja">×</button>`;
+  row.innerHTML = `<div class="slot-number"></div><label><span>Día protegido</span><select class="slot-day">${days.map((d, i) => `<option value="${i}" ${i === slot.day ? "selected" : ""}>${d}</option>`).join("")}</select></label><label><span>Comienza</span><input class="slot-start" type="time" required value="${esc(slot.start)}"></label><span class="slot-arrow">→</span><label><span>Termina</span><input class="slot-end" type="time" required value="${esc(slot.end)}"></label><button type="button" class="remove-slot" aria-label="Quitar franja">×</button>`;
   row.querySelector("button").onclick = () => {
     row.remove();
     markDirty();
+    updateSchedulePreview();
   };
+  row.addEventListener("input", updateSchedulePreview);
   $("#scheduleRows").append(row);
+  [...document.querySelectorAll(".slot-number")].forEach(
+    (node, index) => (node.textContent = String(index + 1).padStart(2, "0")),
+  );
 }
 function fillSchedule(config) {
   $("#scheduleEnabled").checked = config.schedule_enabled;
   $("#scheduleRows").replaceChildren();
   (config.weekly_schedule || []).forEach(slotRow);
+  updateSchedulePreview();
+}
+
+const terminalTime = (value) =>
+  timeFormat({
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(new Date(value));
+function telemetryLine(item) {
+  const type =
+    item.log_type === "motion_start"
+      ? "ALERTA_START"
+      : item.log_type === "motion_end"
+        ? "ALERTA_END"
+        : "HEARTBEAT";
+  return `[${terminalTime(item.received_at)}] ${type.padEnd(12)} PIR=${item.raw_pir_high ? "HIGH" : "LOW "} ARMED=${item.sensor_armed ? "YES" : "NO "} MON=${item.monitoring_active ? "ON " : "OFF"} RSSI=${String(item.wifi_rssi ?? "—").padStart(3)}dBm HEAP=${item.free_heap ?? "—"}B EDGES=${item.raw_pir_edges ?? 0} SUPP=${item.suppressed_alerts ?? 0}`;
+}
+function appendTelemetry(items, reset = false) {
+  if (reset) {
+    renderedTelemetryIds = new Set();
+    $("#liveLogs").textContent = "VIGÍA LIVE CONSOLE · esperando telemetría…\n";
+  }
+  if (logsPaused) return;
+  const unseen = [...items]
+    .reverse()
+    .filter((item) => !renderedTelemetryIds.has(item.id));
+  if (!unseen.length) return;
+  const output = unseen.map(telemetryLine).join("\n") + "\n";
+  $("#liveLogs").textContent += output;
+  unseen.forEach((item) => renderedTelemetryIds.add(item.id));
+  const lines = $("#liveLogs").textContent.split("\n");
+  if (lines.length > 180)
+    $("#liveLogs").textContent = lines.slice(-180).join("\n");
+  $("#liveLogs").scrollTop = $("#liveLogs").scrollHeight;
 }
 function render(data) {
   currentUser = data.user;
@@ -142,6 +219,8 @@ function render(data) {
   const prior = currentDevice;
   currentDevice = device;
   const c = device.config || {};
+  latestTelemetry = data.telemetry || [];
+  if (logsDialog.open) appendTelemetry(latestTelemetry);
   if (!dirty && !saving && (!prior || prior.config.updated_at !== c.updated_at))
     fillSchedule(c);
   if (!saving) $("#monitorSwitch").checked = c.monitoring_enabled;
@@ -161,39 +240,93 @@ function render(data) {
   $("#armHint").textContent = c.monitoring_enabled
     ? "Habilitado"
     : "Pausa manual";
+  const sensorState = !device.alive
+    ? "offline"
+    : !applied || !device.desired_active
+      ? "paused"
+      : device.motion_active
+        ? "alarm"
+        : device.sensor_ready === false || device.sensor_armed === false
+          ? "arming"
+          : "calm";
+  $(".hero").className = `hero glass hero-${sensorState}`;
+  $("#sensorCard").className = `glass sensor-card sensor-${sensorState}`;
   $("#protectionTitle").textContent = !device.alive
-    ? "Esperando a tu hogar"
+    ? "Sensor fuera de línea"
     : !applied
       ? "Actualizando protección"
-      : device.desired_active
-        ? "Tu hogar, bajo cuidado"
-        : "Tu hogar, a tu ritmo";
+      : device.motion_active && device.desired_active
+        ? "¡Movimiento detectado!"
+        : device.desired_active
+          ? "Tu hogar, bajo cuidado"
+          : "Protección desactivada";
   $("#protectionDescription").textContent = !device.alive
     ? "No hay comunicación reciente. El estado del monitor no se puede confirmar."
     : !applied
       ? "El cambio está guardado. Esperando confirmación del dispositivo."
-      : !c.monitoring_enabled
-        ? "Monitoreo pausado manualmente. Actívalo cuando salgas."
-        : !device.desired_active
-          ? "Fuera del horario programado. Las alertas están en pausa."
-          : "Vigía está atento. Te avisará si detecta movimiento.";
+      : device.motion_active && device.desired_active
+        ? "Vigía detectó actividad. Revisa el área monitoreada."
+        : !c.monitoring_enabled
+          ? "Monitoreo pausado manualmente. Actívalo cuando salgas."
+          : !device.desired_active
+            ? "Fuera del horario programado. Las alertas están en pausa."
+            : "Vigía está atento. Te avisará si detecta movimiento.";
   $("#lastSeen").textContent = device.last_seen
     ? `Última conexión · ${timeFormat({ hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(new Date(device.last_seen))}`
     : "Sin conexión registrada";
   $("#motion").textContent = !device.alive
-    ? "Sin conexión"
+    ? "SIN SENSOR"
     : !applied
       ? "Pendiente"
       : !device.desired_active
-        ? "En pausa"
+        ? "DESACTIVADO"
         : device.motion_active
-          ? "Movimiento"
-          : "En calma";
+          ? "¡MOVIMIENTO!"
+          : device.sensor_ready === false || device.sensor_armed === false
+            ? "ARMANDO"
+            : "EN CALMA";
   $("#motion").className =
     device.motion_active && device.desired_active ? "danger" : "";
-  $("#sensorHint").textContent = !device.desired_active
-    ? "Alertas y registros deshabilitados"
-    : "Detección de movimiento PIR";
+  $("#sensorHint").textContent =
+    sensorState === "offline"
+      ? "⚠ No llegan datos del dispositivo"
+      : sensorState === "paused"
+        ? "⚠ Alertas y registros detenidos"
+        : sensorState === "alarm"
+          ? "⚠ Actividad confirmada por el PIR"
+          : sensorState === "arming"
+            ? "Estabilizando lectura del sensor"
+            : "● Sensor PIR vigilando activamente";
+  const alert = $("#sensorAlert");
+  alert.className = `sensor-alert sensor-alert-${sensorState}`;
+  if (sensorState === "calm") alert.classList.add("hidden");
+  const alertCopy = {
+    alarm: [
+      "⚠",
+      "Movimiento detectado",
+      "Hay una alerta activa en el área monitoreada.",
+    ],
+    paused: [
+      "Ⅱ",
+      "Monitoreo desactivado",
+      "El sensor no generará alertas hasta volver a activarlo o entrar en horario.",
+    ],
+    offline: [
+      "×",
+      "No hay sensor activo",
+      "El ESP32 dejó de enviar datos. Revisa alimentación, Wi-Fi o conexión.",
+    ],
+    arming: [
+      "…",
+      "Sensor preparando vigilancia",
+      "Esperando estabilización y una señal PIR en reposo.",
+    ],
+  }[sensorState];
+  if (alertCopy) {
+    $("#sensorAlertIcon").textContent = alertCopy[0];
+    $("#sensorAlertTitle").textContent = alertCopy[1];
+    $("#sensorAlertText").textContent = alertCopy[2];
+  }
   $("#rssi").textContent = Number.isFinite(device.wifi_rssi)
     ? `${device.wifi_rssi} dBm`
     : "—";
@@ -226,7 +359,15 @@ function render(data) {
     .join("");
   const events = data.events || [],
     starts = events.filter((e) => e.event_type === "motion_start");
-  $("#detectionCount").textContent = starts.length;
+  $("#detectionCount").textContent = data.detections_today ?? 0;
+  $("#detectionCaption").textContent =
+    (data.detections_today ?? 0) === 1
+      ? "Detección registrada hoy"
+      : "Detecciones registradas hoy";
+  $("#detectionCard").classList.toggle(
+    "has-detections",
+    (data.detections_today ?? 0) > 0,
+  );
   const last = starts[0];
   $("#lastDetection").textContent = last
     ? timeFormat({ hour: "2-digit", minute: "2-digit", hour12: false }).format(
@@ -288,6 +429,15 @@ function render(data) {
     `Detecciones de hoy en la muestra: ${counts.map((n, h) => `${h} horas: ${n}`).join(", ")}`,
   );
   $("#dashboardError").textContent = "";
+  $("#terminalConnection").textContent = device.alive
+    ? "conectado · streaming"
+    : "sin señal";
+  $("#terminalFirmware").textContent =
+    `firmware ${device.firmware_version || "—"}`;
+  $("#terminalRssi").textContent =
+    `wifi ${Number.isFinite(device.wifi_rssi) ? `${device.wifi_rssi} dBm` : "—"}`;
+  $("#terminalHeap").textContent = `heap ${device.free_heap || "—"} B`;
+  $("#terminalPulse").classList.toggle("offline", !device.alive);
 }
 async function refresh(initial = false) {
   if (refreshing) return;
@@ -392,12 +542,52 @@ $("#accountForm").addEventListener("submit", async (event) => {
 $("#scheduleForm").addEventListener("input", () => {
   markDirty();
   $("#scheduleMessage").textContent = "Cambios sin guardar";
+  updateSchedulePreview();
 });
 $("#addSlot").onclick = () => {
   if (document.querySelectorAll(".slot-row").length >= 28) return;
   slotRow();
   markDirty();
+  updateSchedulePreview();
 };
+const schedulePresets = {
+  work: [1, 2, 3, 4, 5].map((day) => ({ day, start: "08:00", end: "18:00" })),
+  night: [0, 1, 2, 3, 4, 5, 6].map((day) => ({
+    day,
+    start: "22:00",
+    end: "06:00",
+  })),
+  weekend: [
+    { day: 6, start: "00:00", end: "23:59" },
+    { day: 0, start: "00:00", end: "23:59" },
+  ],
+};
+for (const button of document.querySelectorAll("[data-preset]")) {
+  button.onclick = () => {
+    $("#scheduleEnabled").checked = true;
+    $("#scheduleRows").replaceChildren();
+    schedulePresets[button.dataset.preset].forEach(slotRow);
+    markDirty();
+    updateSchedulePreview();
+  };
+}
+
+$("#openLogs").onclick = () => {
+  logsPaused = false;
+  $("#pauseLogs").textContent = "Pausar";
+  appendTelemetry(latestTelemetry, true);
+  logsDialog.showModal();
+};
+$("#closeLogs").onclick = () => logsDialog.close();
+$("#pauseLogs").onclick = () => {
+  logsPaused = !logsPaused;
+  $("#pauseLogs").textContent = logsPaused ? "Continuar" : "Pausar";
+  if (!logsPaused) appendTelemetry(latestTelemetry);
+};
+$("#clearLogs").onclick = () => appendTelemetry([], true);
+logsDialog.addEventListener("click", (event) => {
+  if (event.target === logsDialog) logsDialog.close();
+});
 async function saveConfig(changes) {
   if (saving || !currentDevice) return;
   saving = true;

@@ -3,9 +3,17 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <meta name="theme-color" content="#eef2f8" />
+    <meta name="theme-color" content="#071b17" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta
+      name="apple-mobile-web-app-status-bar-style"
+      content="black-translucent"
+    />
+    <meta name="apple-mobile-web-app-title" content="Vigía" />
     <title>Vigía · Tu hogar, en calma</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
@@ -18,6 +26,9 @@
           ></a
         ><span class="brand-caption">TU HOGAR, EN CALMA</span>
         <div id="brandActions" class="brand-actions hidden">
+          <button id="openLogs" class="terminal-button">
+            <span class="terminal-led"></span>Logs en vivo
+          </button>
           <button id="accountButton" class="ghost">Mi cuenta</button
           ><button id="logout" class="ghost">Salir ↗</button>
         </div>
@@ -108,6 +119,13 @@
             <p id="configSync" aria-live="polite">Consultando configuración</p>
           </div>
         </section>
+        <section id="sensorAlert" class="sensor-alert hidden" role="alert">
+          <span id="sensorAlertIcon" class="sensor-alert-icon">!</span>
+          <div>
+            <strong id="sensorAlertTitle"></strong>
+            <p id="sensorAlertText"></p>
+          </div>
+        </section>
         <div class="monitor-heading">
           <h2>Tu monitor <span class="muted">/ 01</span></h2>
           <span class="quiet-label">HORA DE BOLIVIA · UTC−04</span>
@@ -151,13 +169,13 @@
           aria-labelledby="tab-overview"
         >
           <div class="metrics">
-            <article class="glass">
+            <article id="detectionCard" class="glass detection-card">
               <span class="metric-icon">◎</span
-              ><span class="eyebrow">DETECCIONES RECIENTES</span
+              ><span class="eyebrow">DETECCIONES DE HOY</span
               ><strong id="detectionCount">—</strong
-              ><small>En los últimos 100 eventos</small>
+              ><small id="detectionCaption">Detecciones registradas hoy</small>
             </article>
-            <article class="glass">
+            <article id="sensorCard" class="glass sensor-card">
               <span class="metric-icon">⌁</span
               ><span class="eyebrow">ESTADO DEL SENSOR</span
               ><strong id="motion">—</strong
@@ -186,7 +204,7 @@
                 <span class="pill">Hoy</span>
               </div>
               <p class="muted chart-caption">
-                Detecciones de hoy dentro de los últimos 100 eventos.
+                Distribución de las detecciones recientes por hora.
               </p>
               <div
                 id="activityChart"
@@ -207,9 +225,7 @@
               <p id="scheduleDetail" class="muted">
                 Configura los momentos en que tu casa se queda sola.
               </p>
-              <button id="editSchedule" class="ghost">
-                Editar horarios ↗
-              </button>
+              <button id="editSchedule" class="ghost">Editar horarios ↗</button>
             </section>
           </div>
           <section class="panel glass">
@@ -284,16 +300,44 @@
                     type="checkbox"
                     role="switch" /><span class="switch-track"></span
                 ></label>
+                <div class="schedule-presets" aria-label="Atajos de horario">
+                  <button
+                    type="button"
+                    class="schedule-preset"
+                    data-preset="work"
+                  >
+                    Lun–Vie · jornada
+                  </button>
+                  <button
+                    type="button"
+                    class="schedule-preset"
+                    data-preset="night"
+                  >
+                    Todas las noches
+                  </button>
+                  <button
+                    type="button"
+                    class="schedule-preset"
+                    data-preset="weekend"
+                  >
+                    Fin de semana
+                  </button>
+                </div>
                 <div id="scheduleRows"></div>
                 <div class="schedule-actions">
                   <button type="button" id="addSlot" class="ghost">
                     ＋ Añadir franja</button
                   ><span class="muted">Máximo 28 franjas</span>
                 </div>
+                <div
+                  id="schedulePreview"
+                  class="schedule-preview"
+                  aria-live="polite"
+                ></div>
                 <p class="hint">
-                  Hora de Bolivia. Si el fin es anterior al inicio, la franja
-                  termina al día siguiente. El inicio se incluye y el fin se
-                  excluye.
+                  Hora de Bolivia. Vigía captura únicamente dentro de estas
+                  franjas. Fuera de ellas el sensor queda en pausa. Si la hora
+                  final es menor, la franja continúa hasta el día siguiente.
                 </p>
                 <p id="scheduleMessage" role="status"></p>
                 <button type="submit" id="saveSchedule">
@@ -380,6 +424,48 @@
         <p id="accountMessage" class="error" role="alert"></p>
         <button type="submit">Guardar cambios</button>
       </form>
+    </dialog>
+    <dialog id="logsDialog" class="terminal-dialog">
+      <div class="terminal-window">
+        <header class="terminal-titlebar">
+          <div class="terminal-dots" aria-hidden="true">
+            <i></i><i></i><i></i>
+          </div>
+          <div>
+            <strong>vigia@esp32</strong
+            ><span id="terminalConnection">conectando…</span>
+          </div>
+          <button
+            id="closeLogs"
+            class="terminal-close"
+            type="button"
+            aria-label="Cerrar logs"
+          >
+            ×
+          </button>
+        </header>
+        <div class="terminal-toolbar">
+          <span
+            ><i id="terminalPulse" class="terminal-pulse"></i> TELEMETRÍA EN
+            VIVO</span
+          >
+          <div>
+            <button id="pauseLogs" type="button">Pausar</button
+            ><button id="clearLogs" type="button">Limpiar</button>
+          </div>
+        </div>
+        <pre
+          id="liveLogs"
+          class="terminal-output"
+          aria-live="polite"
+          aria-label="Logs en vivo del ESP32"
+        ></pre>
+        <footer class="terminal-footer">
+          <span id="terminalFirmware">firmware —</span
+          ><span id="terminalRssi">wifi —</span
+          ><span id="terminalHeap">heap —</span>
+        </footer>
+      </div>
     </dialog>
     <script src="/app.js" defer></script>
   </body>
