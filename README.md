@@ -65,7 +65,7 @@ Mirando la cara de componentes como en IMG_2550, el potenciómetro más próximo
 
 Monta el sensor rígidamente; no lo dejes sobre cama, tela o una superficie que se mueva. Apunta a través del recorrido esperado, evitando ventana, sol directo, cortinas calentadas, aire acondicionado, ventilador, calefactor, televisor, computadora y corrientes de aire exteriores. Mantén los cables cortos y firmes. Si persisten pulsos con la habitación vacía, añade cerca del PIR un capacitor electrolítico de 100 µF y uno cerámico de 100 nF en paralelo entre VCC y GND, respetando la polaridad del electrolítico. También puede cubrirse con cinta opaca sólo el sector de la lente que mira una fuente problemática.
 
-El firmware 1.5.1 espera 60 segundos de estabilización. Cuando el monitoreo se habilita añade 30 segundos de armado y exige después una línea LOW estable durante 3 segundos. Un movimiento requiere HIGH continuo durante 2 segundos y el fin requiere LOW continuo durante 3 segundos. Las detecciones confirmadas dentro de los 60 segundos posteriores a una alerta se agrupan para evitar ráfagas de correos y eventos remotos. Una señal alta mantenida genera un solo inicio. Los latidos remotos reportan el estado de la alerta aceptada, no pulsos agrupados, para mantener la tarjeta web consistente con el historial. Las alertas son visuales en la web, sin sirena; el inicio también puede enviar un correo.
+El firmware 1.6.0 usa un perfil reactivo: 30 segundos de estabilización, 5 segundos de armado después de habilitar el monitoreo y una línea LOW estable antes de quedar listo. Confirma HIGH y LOW durante 1 segundo. Permite un nuevo incidente remoto cada 10 segundos, mientras que el correo conserva un intervalo de 60 segundos para evitar ráfagas. Una señal alta mantenida genera un solo inicio; por ello el potenciómetro de duración debe permanecer cerca del mínimo. Los latidos remotos reportan el estado de la alerta aceptada, no pulsos agrupados, para mantener la tarjeta web consistente con el historial. El panel de internet consulta cada 2 segundos.
 
 `GET /api/events` devuelve los últimos 100 eventos en orden reciente, guardados en RAM; se pierden al reiniciar. La marca de tiempo usa NTP cuando está disponible y segundos de encendido cuando no lo está. El software no puede distinguir un sensor desconectado de una entrada permanentemente baja.
 
@@ -147,7 +147,7 @@ Edita el `.env` local, que está ignorado por Git, y completa:
 CLOUD_API_URL="https://TU-PROYECTO.vercel.app/api/device-ingest"
 DEVICE_API_KEY="EL_MISMO_SECRETO_CONFIGURADO_EN_VERCEL"
 DEVICE_ID="vigia-esp32-01"
-FIRMWARE_VERSION="1.5.1"
+FIRMWARE_VERSION="1.6.0"
 ```
 
 Luego carga el dispositivo conectado:
@@ -166,7 +166,7 @@ El botón **Mi cuenta** permite cambiar el nombre de usuario y, opcionalmente, l
 
 Gmail y Vercel usan conexiones TLS que consumen bastante memoria en el ESP32. El firmware las serializa con un mutex para impedir dos handshakes simultáneos. En el monitor serie, `T` prueba únicamente el correo y `M` simula un ciclo completo de movimiento: correo, `motion_start` y `motion_end`. Estos comandos son diagnósticos USB y no están expuestos por la web.
 
-### Monitoreo semanal · Firmware 1.5.1
+### Monitoreo semanal · Firmware 1.6.0
 
 El monitor web tiene Vista general, Actividad y Configuración. La visualización está inspirada en la guía de materiales de Apple: https://developer.apple.com/design/human-interface-guidelines/materials . El vidrio se usa en navegación y superficies, con contraste, foco visible, navegación por teclado y preferencias de movimiento/transparencia reducidos.
 

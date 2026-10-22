@@ -55,7 +55,7 @@ const api = async (url, options = {}) => {
 };
 function startPolling() {
   clearInterval(timer);
-  timer = setInterval(() => refresh(), 5000);
+  timer = setInterval(() => refresh(), 2000);
 }
 function showLogin(message = "") {
   ++sessionGeneration;

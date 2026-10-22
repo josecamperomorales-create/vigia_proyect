@@ -42,11 +42,11 @@ except ValueError as error:
 if not 10 <= alert_cooldown_seconds <= 3600:
     raise RuntimeError("ALERT_EMAIL_COOLDOWN_SECONDS debe estar entre 10 y 3600")
 timing_limits = {
-    "PIR_WARMUP_SECONDS": (60, 30, 180),
-    "PIR_ARMING_SECONDS": (30, 5, 300),
-    "PIR_HIGH_CONFIRM_SECONDS": (2, 1, 10),
-    "PIR_LOW_CONFIRM_SECONDS": (3, 1, 30),
-    "MOTION_EVENT_COOLDOWN_SECONDS": (60, 10, 3600),
+    "PIR_WARMUP_SECONDS": (30, 30, 180),
+    "PIR_ARMING_SECONDS": (5, 5, 300),
+    "PIR_HIGH_CONFIRM_SECONDS": (1, 1, 10),
+    "PIR_LOW_CONFIRM_SECONDS": (1, 1, 30),
+    "MOTION_EVENT_COOLDOWN_SECONDS": (10, 10, 3600),
 }
 timings = {}
 for key, (default, minimum, maximum) in timing_limits.items():
