@@ -89,6 +89,13 @@ void cloudWorker(void*) {
     xSemaphoreGive(tlsMutex);
     cloudStateCode = status >= 200 && status < 300 ? 3 : 4;
     Serial.printf("Nube: %s -> HTTP %d\n", type, status);
+    if (status == 401) {
+      Serial.println("Nube: credencial rechazada. DEVICE_API_KEY no coincide con Vercel.");
+    } else if (status == 403) {
+      Serial.println("Nube: acceso prohibido por el servidor.");
+    } else if (status <= 0) {
+      Serial.println("Nube: no se pudo establecer la conexión HTTPS.");
+    }
   }
 }
 
