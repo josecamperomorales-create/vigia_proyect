@@ -36,7 +36,7 @@ void logEvent(uint8_t kind) {
 
 void handleMotionTransition(int transition) {
   if (!transition) return;
-  logEvent(transition);
+  logEvent(transition == 4 ? 10 : transition);
   if (transition == 3) {
     if (cloudMotionOpen) queueCloudEvent(CLOUD_MOTION_END, false);
     cloudMotionOpen = false;
