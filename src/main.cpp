@@ -49,8 +49,8 @@ void handleMotionTransition(int transition) {
     return;
   }
   cloudMotionOpen = true;
-  queueAlertMail();
   queueCloudEvent(CLOUD_MOTION_START, true);
+  queueAlertMail();
 }
 
 void pollDiagnostics() {
@@ -161,7 +161,9 @@ void loop() {
   handleMotionTransition(transition);
   pollMail();
   pollDiagnostics();
-  pollCloudSync(motion.active);
+  // The cloud card represents an accepted alarm incident. Raw/confirmed PIR
+  // activity inside the cooldown remains available only in local diagnostics.
+  pollCloudSync(cloudMotionOpen);
   server.handleClient();
   const bool connected = WiFi.status() == WL_CONNECTED;
   if (connected && !previouslyConnected) {
