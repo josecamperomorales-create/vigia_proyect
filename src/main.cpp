@@ -12,7 +12,11 @@ WebServer server(80);
 bool previouslyConnected = false;
 uint32_t lastReconnect = 0;
 constexpr uint8_t PIR_PIN = 27;
-MotionDetector motion;
+MotionDetector motion(PIR_WARMUP_MS, PIR_ARMING_MS, PIR_HIGH_CONFIRM_MS, PIR_LOW_CONFIRM_MS);
+AlertGate alertGate(MOTION_EVENT_COOLDOWN_MS);
+bool cloudMotionOpen = false;
+bool rawPirHigh = false;
+uint32_t rawPirEdges = 0, suppressedAlerts = 0, lastRawChangeMs = 0;
 struct Event { uint32_t id; unsigned long uptime; unsigned long epoch; uint8_t kind; };
 constexpr size_t EVENT_LIMIT = 100;
 Event events[EVENT_LIMIT];
@@ -31,10 +35,22 @@ void logEvent(uint8_t kind) {
 #include "cloud_sync.h"
 
 void handleMotionTransition(int transition) {
-  if (!transition || !monitoringAllowed()) return;
+  if (!transition) return;
   logEvent(transition);
-  if (transition == 2) { queueAlertMail(); queueCloudEvent(CLOUD_MOTION_START, true); }
-  if (transition == 3) queueCloudEvent(CLOUD_MOTION_END, false);
+  if (transition == 3) {
+    if (cloudMotionOpen) queueCloudEvent(CLOUD_MOTION_END, false);
+    cloudMotionOpen = false;
+    return;
+  }
+  if (transition != 2 || !monitoringAllowed()) return;
+  if (!alertGate.allow(millis())) {
+    ++suppressedAlerts;
+    logEvent(11);
+    return;
+  }
+  cloudMotionOpen = true;
+  queueAlertMail();
+  queueCloudEvent(CLOUD_MOTION_START, true);
 }
 
 void pollDiagnostics() {
@@ -88,8 +104,15 @@ void sendStatus() {
   json += ",\"mail_state\":" + jsonString(mailState);
   json += ",\"cloud_state\":" + jsonString(cloudStateText());
   json += ",\"sensor_ready\":"; json += motion.ready ? "true" : "false";
+  json += ",\"sensor_armed\":"; json += motion.armed ? "true" : "false";
+  json += ",\"monitoring_allowed\":"; json += monitoringAllowed() ? "true" : "false";
+  json += ",\"raw_pir_high\":"; json += rawPirHigh ? "true" : "false";
+  json += ",\"raw_pir_edges\":" + String(rawPirEdges);
+  json += ",\"suppressed_alerts\":" + String(suppressedAlerts);
+  json += ",\"last_raw_change_ms\":" + String(lastRawChangeMs);
   json += ",\"motion_active\":"; json += motion.active ? "true" : "false";
-  json += ",\"warmup_remaining\":" + String(motion.ready ? 0 : (60000 - millis() + 999) / 1000);
+  json += ",\"warmup_remaining\":" + String(motion.ready ? 0 : (PIR_WARMUP_MS - millis() + 999) / 1000);
+  json += ",\"arming_remaining\":" + String((motion.armingRemainingMs(millis()) + 999) / 1000);
   json += ",\"epoch\":" + String(static_cast<unsigned long>(now)) + "}";
   server.sendHeader("Cache-Control", "no-store");
   server.send(200, "application/json; charset=utf-8", json);
@@ -126,7 +149,15 @@ void setup() {
 }
 
 void loop() {
-  const int transition = motion.update(millis(), monitoringAllowed() && digitalRead(PIR_PIN) == HIGH);
+  const uint32_t now = millis();
+  const bool rawHigh = digitalRead(PIR_PIN) == HIGH;
+  if (rawHigh != rawPirHigh) {
+    rawPirHigh = rawHigh;
+    lastRawChangeMs = now;
+    ++rawPirEdges;
+    Serial.printf("PIR bruto: %s | flanco %lu\n", rawHigh ? "HIGH" : "LOW", static_cast<unsigned long>(rawPirEdges));
+  }
+  const int transition = motion.update(now, monitoringAllowed(), rawHigh);
   handleMotionTransition(transition);
   pollMail();
   pollDiagnostics();

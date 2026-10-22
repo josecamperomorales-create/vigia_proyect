@@ -41,6 +41,21 @@ except ValueError as error:
     raise RuntimeError("ALERT_EMAIL_COOLDOWN_SECONDS debe ser un número entero") from error
 if not 10 <= alert_cooldown_seconds <= 3600:
     raise RuntimeError("ALERT_EMAIL_COOLDOWN_SECONDS debe estar entre 10 y 3600")
+timing_limits = {
+    "PIR_WARMUP_SECONDS": (60, 30, 180),
+    "PIR_ARMING_SECONDS": (30, 5, 300),
+    "PIR_HIGH_CONFIRM_SECONDS": (2, 1, 10),
+    "PIR_LOW_CONFIRM_SECONDS": (3, 1, 30),
+    "MOTION_EVENT_COOLDOWN_SECONDS": (60, 10, 3600),
+}
+timings = {}
+for key, (default, minimum, maximum) in timing_limits.items():
+    try:
+        timings[key] = int(values.get(key, str(default)))
+    except ValueError as error:
+        raise RuntimeError(f"{key} debe ser un número entero") from error
+    if not minimum <= timings[key] <= maximum:
+        raise RuntimeError(f"{key} debe estar entre {minimum} y {maximum}")
 cloud_url = values.get("CLOUD_API_URL", "").strip()
 device_key = values.get("DEVICE_API_KEY", "").strip()
 if bool(cloud_url) != bool(device_key):
@@ -61,6 +76,8 @@ contents = "#pragma once\n"
 for key in ("WIFI_SSID", "WIFI_PASSWORD", "AP_SSID", "AP_PASSWORD", "SMTP_HOST", "SMTP_USER", "SMTP_PASSWORD", "SMTP_FROM_NAME", "ALERT_EMAIL_TO"):
     contents += f"static const char {key}[] = {json.dumps(values[key], ensure_ascii=True)};\n"
 contents += f"static const uint32_t ALERT_EMAIL_COOLDOWN_MS = {alert_cooldown_seconds * 1000}UL;\n"
+for key, seconds in timings.items():
+    contents += f"static const uint32_t {key.removesuffix('_SECONDS')}_MS = {seconds * 1000}UL;\n"
 for key, value in (("CLOUD_API_URL", cloud_url), ("DEVICE_API_KEY", device_key), ("DEVICE_ID", device_id), ("FIRMWARE_VERSION", firmware_version)):
     contents += f"static const char {key}[] = {json.dumps(value, ensure_ascii=True)};\n"
 contents += "static const uint32_t CLOUD_HEARTBEAT_INTERVAL_MS = 15000UL;\n"

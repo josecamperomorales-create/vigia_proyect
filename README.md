@@ -59,27 +59,32 @@ Sensor de las fotos: módulo compatible con HC-SR501 (PIR de movimiento, no pres
 
 En IMG_2549, mirando la cara de componentes con los potenciómetros arriba y los tres pines abajo, la distribución habitual de este módulo es VCC izquierda, OUT centro y GND derecha. Verifica las marcas +/OUT/− o VCC/OUT/GND antes de energizar: no confundas esa vista con la cara de la lente. No necesitas las resistencias de la foto para esta conexión; GPIO27 lleva pulldown interno. No conectes una resistencia entre VIN y D27.
 
-Alcance nominal máximo de esta familia: aproximadamente 700 cm, campo de visión hasta 120°; no mide distancia ni ángulo. Temperatura, lente, orientación y movimiento afectan al alcance real.
+Alcance nominal de esta familia: aproximadamente 300 a 700 cm, campo de visión menor a 120°; no mide distancia ni ángulo. Temperatura, lente, orientación y movimiento afectan al alcance real. Para un dormitorio conviene comenzar cerca del mínimo, no en el alcance máximo.
 
-En IMG_2550, el potenciómetro marcado 501 (junto al jumper) ajusta sensibilidad; el marcado 105 ajusta retardo. Lleva sensibilidad al extremo de mayor alcance mediante pruebas caminando transversalmente a 300, 500 y 700 cm. Hay variantes con sentido de ajuste diferente: SunFounder describe aumento horario y Joy-IT antihorario; no fuerces el tope. Para pruebas, lleva el retardo al mínimo (normalmente antihorario). Coloca el jumper en H, uniendo el central y el lado rotulado H para redisparo. Conserva la lente y evita sol directo, calefactores y corrientes de aire caliente.
+Mirando la cara de componentes como en IMG_2550, el potenciómetro más próximo al jumper ajusta distancia/sensibilidad y el otro ajusta el tiempo que OUT permanece en HIGH. La hoja del fabricante Shenzhen Haiwang identifica el control próximo al jumper como distancia: horario aumenta hacia unos 7 m y antihorario reduce hacia unos 3 m. Existen clones con disposición o sentido distintos; mueve sólo un control por vez, en pasos pequeños, sin forzar el tope, y confirma el resultado caminando transversalmente. Para aislar falsos positivos, empieza con distancia mínima y tiempo mínimo. La foto parece mostrar el jumper en L; mantenlo en L durante el diagnóstico para obtener pulsos separados. H permite redisparo continuo, pero no corrige una detección térmica falsa.
 
-Tras alimentar, espera 60 segundos de estabilización. Se registran inicio, sensor listo, movimiento/alerta y señal baja/fin de alerta. Una señal alta mantenida genera un solo inicio de alerta; cuando baja se registra el fin. No representa cantidad de personas ni ausencia de personas cuando baja. Las alertas son visuales en la web, sin sirena; el inicio también puede enviar un correo.
+Monta el sensor rígidamente; no lo dejes sobre cama, tela o una superficie que se mueva. Apunta a través del recorrido esperado, evitando ventana, sol directo, cortinas calentadas, aire acondicionado, ventilador, calefactor, televisor, computadora y corrientes de aire exteriores. Mantén los cables cortos y firmes. Si persisten pulsos con la habitación vacía, añade cerca del PIR un capacitor electrolítico de 100 µF y uno cerámico de 100 nF en paralelo entre VCC y GND, respetando la polaridad del electrolítico. También puede cubrirse con cinta opaca sólo el sector de la lente que mira una fuente problemática.
+
+El firmware 1.5.0 espera 60 segundos de estabilización. Cuando el monitoreo se habilita añade 30 segundos de armado y exige después una línea LOW estable durante 3 segundos. Un movimiento requiere HIGH continuo durante 2 segundos y el fin requiere LOW continuo durante 3 segundos. Las detecciones confirmadas dentro de los 60 segundos posteriores a una alerta se agrupan para evitar ráfagas de correos y eventos remotos. Una señal alta mantenida genera un solo inicio. Las alertas son visuales en la web, sin sirena; el inicio también puede enviar un correo.
 
 `GET /api/events` devuelve los últimos 100 eventos en orden reciente, guardados en RAM; se pierden al reiniciar. La marca de tiempo usa NTP cuando está disponible y segundos de encendido cuando no lo está. El software no puede distinguir un sensor desconectado de una entrada permanentemente baja.
 
-Pruebas de lógica: `c++ tests/motion_test.cpp -o /tmp/vigia-motion-test && /tmp/vigia-motion-test`. Verifican estabilización, señal mantenida, filtro de 100 ms, fin de alerta y desbordamiento del temporizador. Compilación y carga USB verificadas. Falta probar detecciones reales con el cableado conectado.
+Pruebas de lógica: `c++ -std=c++17 tests/motion_test.cpp -o /tmp/vigia-motion-test && /tmp/vigia-motion-test`. Verifican estabilización, armado sobre una línea base limpia, confirmación de inicio y fin, agrupación y desbordamiento del temporizador.
+
+Diagnóstico físico del 21 de octubre de 2026: con la habitación reportada sin movimiento, GPIO27 produjo 19 flancos en aproximadamente 73 segundos. Los HIGH observados duraron entre aproximadamente 1.2 y 9.5 segundos. Esos pulsos son demasiado largos para ser rebotes eléctricos de 100 ms y proceden del módulo PIR, su alimentación/cableado o cambios infrarrojos del entorno. La nueva lógica reduce avisos repetidos, pero ningún filtro digital puede distinguir una persona de una señal HIGH válida causada por sol, aire caliente, vibración o un módulo defectuoso. La prueba concluyente consiste en dejar el ESP32 quieto y desconectar sólo OUT de GPIO27: con `INPUT_PULLDOWN`, los flancos deben desaparecer. Si desaparecen, el origen está en sensor/ambiente/alimentación; si continúan, revisar cable GPIO27, placa y masa.
 
 Fuentes:
 - https://joy-it.net/en/products/SEN-HC-SR501
 - https://joy-it.net/files/files/Produkte/SEN-HC-SR501/SEN-HC-SR501_Manual_2024-04-16.pdf
 - https://docs.sunfounder.com/projects/umsk/en/latest/01_components_basic/12-component_pir_motion.html
+- https://www.datocms-assets.com/28969/1662716328-hc-sr501.pdf
 
 
 ## Alertas Gmail
 
 Remitente y credenciales se configuran en `.env` (no se imprimen ni se sirven por HTTP). Nombre visible: vigiacorp. Destinatario fijo configurado: josecamperomorales@gmail.com. Se usa `smtp.gmail.com:465` con TLS implícito, certificado verificado contra las raíces de Google en `certs/google-roots.pem` (origen https://pki.goog/roots.pem). Requiere hora NTP válida.
 
-Cada inicio de movimiento puede generar un correo. Hay un intervalo mínimo configurable con `ALERT_EMAIL_COOLDOWN_SECONDS`, actualmente de 10 segundos, reiniciado si se reinicia la placa. Durante el intervalo, las detecciones siguen registrándose pero sus correos se omiten; no se envía un resumen posterior. El envío corre en una tarea independiente para mantener el sensor y la web activos. Espera hasta 60 segundos a que haya red y hora; realiza un intento SMTP y registra el resultado. No hay reintentos automáticos para evitar duplicados si Gmail aceptó un mensaje pero se perdió la confirmación. Los trabajos pendientes están en RAM y se pierden al reiniciar.
+Cada inicio confirmado puede generar un correo. Hay un intervalo mínimo configurable con `ALERT_EMAIL_COOLDOWN_SECONDS`, actualmente de 60 segundos, reiniciado si se reinicia la placa. `MOTION_EVENT_COOLDOWN_SECONDS` agrupa además detecciones repetidas durante 60 segundos antes de correo y nube. No se envía un resumen posterior. El envío corre en una tarea independiente para mantener el sensor y la web activos. Espera hasta 60 segundos a que haya red y hora; realiza un intento SMTP y registra el resultado. No hay reintentos automáticos para evitar duplicados si Gmail aceptó un mensaje pero se perdió la confirmación. Los trabajos pendientes están en RAM y se pierden al reiniciar.
 
 El panel diferencia correo en cola, aceptación por Gmail, error, omisión por intervalo y resultado incierto. Aceptado por Gmail no confirma entrega a la bandeja principal. Por USB, enviar la letra mayúscula `T` genera un correo claramente marcado como prueba y no consume el intervalo de las alertas reales. No existe un endpoint web público que permita disparar correos arbitrarios.
 
@@ -87,9 +92,9 @@ Logo y favicon SVG están integrados en el HTML sin servicios externos. SMTP usa
 
 Prueba SMTP en hardware: el ESP32 envió por TLS el mensaje `[Vigia] Prueba de correo ESP32` al destinatario configurado y recibió aceptación SMTP de Gmail (evento 5). Esto valida red, certificado, autenticación y aceptación del mensaje; la llegada a la bandeja de entrada debe confirmarse en el correo del destinatario.
 
-Corrección posterior: el intervalo de alertas se redujo de 300 a 30 segundos y los correos de diagnóstico dejaron de consumir ese intervalo. Se verificaron dos envíos consecutivos desde el ESP32; Gmail aceptó ambos. Una nueva alerta real requiere que el PIR primero vuelva a nivel bajo y después detecte otro movimiento. El firmware no repite correos mientras la misma señal permanezca activa.
+Los correos de diagnóstico no consumen el intervalo de alertas reales. Se verificaron dos envíos consecutivos desde el ESP32 y Gmail aceptó ambos. Una nueva alerta real requiere que el PIR vuelva primero a nivel bajo y después confirme otro movimiento. El firmware no repite correos mientras la misma señal permanezca activa.
 
-Formato actual del correo: mensaje multipart con versión HTML y texto alternativo, asunto UTF-8 y diseño adaptable. Muestra el timestamp del evento en hora de Bolivia con precisión de segundos (`BOT`, UTC−04:00), marca ISO 8601, tiempo encendido, dispositivo e IP local. El intervalo actual de alertas reales es de 10 segundos. El formato visual fue cargado en el ESP32 y Gmail aceptó el correo de prueba.
+Formato actual del correo: mensaje multipart con versión HTML y texto alternativo, asunto UTF-8 y diseño adaptable. Muestra el timestamp del evento en hora de Bolivia con precisión de segundos (`BOT`, UTC−04:00), marca ISO 8601, tiempo encendido, dispositivo e IP local. El intervalo actual de alertas reales es de 60 segundos. El formato visual fue cargado en el ESP32 y Gmail aceptó el correo de prueba.
 
 ## Panel en Vercel y datos en Supabase
 
@@ -142,7 +147,7 @@ Edita el `.env` local, que está ignorado por Git, y completa:
 CLOUD_API_URL="https://TU-PROYECTO.vercel.app/api/device-ingest"
 DEVICE_API_KEY="EL_MISMO_SECRETO_CONFIGURADO_EN_VERCEL"
 DEVICE_ID="vigia-esp32-01"
-FIRMWARE_VERSION="1.3.0"
+FIRMWARE_VERSION="1.5.0"
 ```
 
 Luego carga el dispositivo conectado:
@@ -161,7 +166,7 @@ El botón **Mi cuenta** permite cambiar el nombre de usuario y, opcionalmente, l
 
 Gmail y Vercel usan conexiones TLS que consumen bastante memoria en el ESP32. El firmware las serializa con un mutex para impedir dos handshakes simultáneos. En el monitor serie, `T` prueba únicamente el correo y `M` simula un ciclo completo de movimiento: correo, `motion_start` y `motion_end`. Estos comandos son diagnósticos USB y no están expuestos por la web.
 
-### Monitoreo semanal · Firmware 1.4.0
+### Monitoreo semanal · Firmware 1.5.0
 
 El monitor web tiene Vista general, Actividad y Configuración. La visualización está inspirada en la guía de materiales de Apple: https://developer.apple.com/design/human-interface-guidelines/materials . El vidrio se usa en navegación y superficies, con contraste, foco visible, navegación por teclado y preferencias de movimiento/transparencia reducidos.
 

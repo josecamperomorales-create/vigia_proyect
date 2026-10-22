@@ -31,6 +31,9 @@ table{width:100%;border-collapse:collapse;font-size:14px}td,th{text-align:left;p
 <dt>Dispositivos conectados</dt><dd id="clients">—</dd>
 <dt>Tiempo encendido</dt><dd id="uptime">—</dd>
 <dt>Correo de alerta</dt><dd id="mail">Consultando…</dd>
+<dt>Señal física del PIR</dt><dd id="rawpir">Consultando…</dd>
+<dt>Cambios de señal</dt><dd id="edges">—</dd>
+<dt>Alertas agrupadas</dt><dd id="suppressed">—</dd>
 <dt>Hora de Bolivia</dt><dd id="clock">Esperando internet…</dd>
 </dl>
 <button id="refresh" type="button">Actualizar estado</button>
@@ -54,15 +57,18 @@ async function refresh(){
   put('wifi',data.wifi_connected?'Conectado':'Sin conexión; reintentando');
   put('ip',data.station_ip);put('ap',data.ap_ssid);put('apip',data.ap_ip);
   put('clients',data.ap_clients);put('uptime',data.uptime_seconds+' segundos');
+  put('rawpir',data.raw_pir_high?'HIGH · el módulo está activando GPIO27':'LOW · señal en reposo');
+  put('edges',data.raw_pir_edges+' desde el último reinicio');
+  put('suppressed',data.suppressed_alerts+' detecciones repetidas');
   put('clock',data.time_synced?new Date(data.epoch*1000).toLocaleString('es-BO',{timeZone:'America/La_Paz'}):'Esperando sincronización por internet…');
-  put('sensor',!data.sensor_ready ? 'Estabilizando sensor: '+data.warmup_remaining+' s' : data.motion_active ? 'ALERTA: movimiento detectado (PIR activo)' : 'Sin señal de movimiento');
+  put('sensor',!data.sensor_ready ? 'Estabilizando sensor: '+data.warmup_remaining+' s' : !data.monitoring_allowed ? 'Monitoreo pausado por configuración' : !data.sensor_armed ? 'Armando sensor: '+data.arming_remaining+' s; esperando señal baja estable' : data.motion_active ? 'ALERTA: movimiento confirmado (PIR activo)' : 'Sensor armado · sin movimiento confirmado');
   document.getElementById('sensor').classList.toggle('alert',data.motion_active);
   put('message','Estado actualizado.');
   try {
    const logResponse=await fetch('/api/events',{cache:'no-store',signal:AbortSignal.timeout(6000)});
    if(!logResponse.ok)throw Error('Eventos no disponibles');
    const logs=await logResponse.json();
-   const names=['Inicio: estabilizando PIR','Sensor listo','Movimiento detectado · ALERTA iniciada','PIR volvió a nivel bajo · fin de alerta','Correo en cola / enviando','Correo aceptado por Gmail','Error al enviar correo','Correo omitido: intervalo de 10 segundos o envío en curso','Evento','Envío incierto: sin confirmación de Gmail'];
+   const names=['Inicio: estabilizando PIR','Estabilización inicial terminada','Movimiento confirmado · ALERTA iniciada','PIR volvió a nivel bajo · fin de alerta','Correo en cola / enviando','Correo aceptado por Gmail','Error al enviar correo','Correo omitido: envío en curso o intervalo activo','Evento','Envío incierto: sin confirmación de Gmail','Sensor armado sobre señal baja estable','Detección agrupada: alerta reciente'];
    const rows=logs.events.map(e=>{
     const row=document.createElement('tr');
     const date=document.createElement('td');const message=document.createElement('td');
