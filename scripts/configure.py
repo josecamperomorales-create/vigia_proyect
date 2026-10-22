@@ -25,6 +25,26 @@ for key in ("WIFI_SSID", "WIFI_PASSWORD", "AP_SSID", "AP_PASSWORD"):
 for key in ("WIFI_SSID", "AP_SSID"):
     if len(values[key].encode()) > 32:
         raise RuntimeError(f"{key} supera 32 bytes")
+print(
+    "VIGÍA · Wi-Fi de destino:",
+    json.dumps(values["WIFI_SSID"], ensure_ascii=False),
+)
+
+def show_upload_network(source, target, env):
+    """Make the selected network unmistakable immediately before flashing."""
+    print("\n" + "=" * 64)
+    print(
+        "VIGÍA · El firmware se conectará a:",
+        json.dumps(values["WIFI_SSID"], ensure_ascii=False),
+    )
+    print(
+        "VIGÍA · Red propia de respaldo:",
+        json.dumps(values["AP_SSID"], ensure_ascii=False),
+    )
+    print("VIGÍA · La contraseña Wi-Fi permanece oculta.")
+    print("=" * 64 + "\n")
+
+env.AddPreAction("upload", show_upload_network)
 if not 8 <= len(values["AP_PASSWORD"].encode()) <= 63:
     raise RuntimeError("AP_PASSWORD debe tener entre 8 y 63 bytes")
 for key in ("SMTP_HOST", "SMTP_USER", "SMTP_PASSWORD", "SMTP_FROM_NAME", "ALERT_EMAIL_TO"):

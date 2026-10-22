@@ -128,6 +128,8 @@ void setup() {
   WiFi.setAutoReconnect(true);
   if (!WiFi.softAP(AP_SSID, AP_PASSWORD)) Serial.println("ERROR: no se pudo iniciar el punto de acceso");
   Serial.printf("Red propia: %s | http://%s\n", AP_SSID, WiFi.softAPIP().toString().c_str());
+  Serial.printf("Wi-Fi destino: %s\n", WIFI_SSID);
+  Serial.println("Wi-Fi: iniciando conexión...");
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   configTime(0, 0, "pool.ntp.org", "time.google.com");
   server.on("/", HTTP_GET, []() { server.send_P(200, "text/html; charset=utf-8", INDEX_HTML); });
@@ -145,7 +147,7 @@ void setup() {
   if (!tlsMutex) Serial.println("ERROR: no se pudo crear el control de conexiones TLS");
   startMail();
   startCloudSync();
-  Serial.println("Servidor HTTP iniciado. Conectando a Wi-Fi...");
+  Serial.printf("Servidor HTTP iniciado. Conectando a \"%s\"...\n", WIFI_SSID);
 }
 
 void loop() {
@@ -167,7 +169,11 @@ void loop() {
   server.handleClient();
   const bool connected = WiFi.status() == WL_CONNECTED;
   if (connected && !previouslyConnected) {
-    Serial.printf("Wi-Fi conectado | http://%s\n", WiFi.localIP().toString().c_str());
+    Serial.printf(
+      "Wi-Fi conectado | red=%s | IP=%s | señal=%d dBm | canal=%d\n",
+      WiFi.SSID().c_str(), WiFi.localIP().toString().c_str(),
+      WiFi.RSSI(), WiFi.channel()
+    );
     if (MDNS.begin("vigia")) MDNS.addService("http", "tcp", 80);
   }
   if (!connected && previouslyConnected) { MDNS.end(); Serial.println("Wi-Fi desconectado; el punto de acceso sigue disponible"); }
@@ -175,7 +181,7 @@ void loop() {
   if (!connected && millis() - lastReconnect >= 30000) {
     lastReconnect = millis();
     WiFi.reconnect();
-    Serial.printf("Reintentando Wi-Fi (estado %d)\n", WiFi.status());
+    Serial.printf("Reintentando Wi-Fi \"%s\" (estado %d)\n", WIFI_SSID, WiFi.status());
   }
   static bool reportedTime = false;
   if (!reportedTime && time(nullptr) > 1700000000) { Serial.println("Hora sincronizada desde internet (NTP)"); reportedTime = true; }
